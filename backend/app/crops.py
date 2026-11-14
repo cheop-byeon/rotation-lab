@@ -161,6 +161,11 @@ def rank_rotations(profile: dict, priorities: list[float], plans: list[dict],
             continue
         families = ([prev.family] if prev else []) + [c.family for c in crops]
         repeats = sum(1 for a, b in zip(families, families[1:]) if a == b)
+        # Clover leys and pulses are both legumes (Fabaceae): back to back they share root
+        # diseases and waste the first crop's nitrogen, so count that as a repeat too.
+        seq = ([prev] if prev else []) + crops
+        legume_runs = sum(1 for a, b in zip(seq, seq[1:]) if a.n_fixing and b.n_fixing and a.family != b.family)
+        repeats += legume_runs
         distinct = len({c.family for c in crops})
         legumes = sum(c.n_fixing for c in crops)
         has_ley = any(c.perennial for c in crops)
@@ -173,6 +178,9 @@ def rank_rotations(profile: dict, priorities: list[float], plans: list[dict],
             reasons.append("Grass–clover ley adds root biomass and organic matter (+25 soil health).")
         if legumes:
             reasons.append(f"{legumes} nitrogen-fixing crop year(s) reduce fertiliser need.")
+
+        if legume_runs:
+            reasons.append("Two nitrogen-fixing (legume) crops back to back: shared root diseases; a cereal should follow a legume.")
 
         # Short-return disease risk for brassicas and potatoes
         short_return = 0

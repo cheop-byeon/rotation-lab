@@ -1,5 +1,5 @@
 // Leaflet map with live NASA GIBS layers over a high-resolution basemap.
-export function createMap(el, config, onPick) {
+export function createMap(el, config, onPick, isDrawing = () => false) {
   const map = L.map(el, { worldCopyJump: true, zoomControl: true, minZoom: 2, scrollWheelZoom: false })
     .setView([63.46, 10.92], 6);
   // Don't hijack page scrolling: wheel-zoom only after the user engages with the map.
@@ -35,13 +35,13 @@ export function createMap(el, config, onPick) {
     } else marker.setLatLng([lat, lon]);
     if (fly) map.flyTo([lat, lon], Math.max(map.getZoom(), 9), { duration: 1.2 });
   }
-  map.on('click', e => { const lat = +e.latlng.lat.toFixed(4), lon = +wrapLon(e.latlng.lng).toFixed(4); setTarget(lat, lon, { fly: false }); onPick(lat, lon); });
+  map.on('click', e => { if (isDrawing()) return; const lat = +e.latlng.lat.toFixed(4), lon = +wrapLon(e.latlng.lng).toFixed(4); setTarget(lat, lon, { fly: false }); onPick(lat, lon); });
   // POWER's met grid cell (0.5° × 0.625°) — shows the footprint the climate numbers represent.
   let cell = null;
   function showCell(lat, lon) {
     const la = Math.round(lat / 0.5) * 0.5, lo = Math.round(lon / 0.625) * 0.625;
     const b = [[la - 0.25, lo - 0.3125], [la + 0.25, lo + 0.3125]];
-    if (cell) cell.setBounds(b); else cell = L.rectangle(b, { color: '#62e3ff', weight: 1, dashArray: '4 6', fill: false, interactive: false }).addTo(map);
+    if (cell) cell.setBounds(b); else cell = L.rectangle(b, { color: '#4FD29A', weight: 1, dashArray: '4 6', fill: false, interactive: false }).addTo(map);
   }
   return { map, show, setOpacity, setTarget, showCell, get current() { return current; }, get date() { return date; } };
 }

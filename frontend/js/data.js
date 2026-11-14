@@ -1,7 +1,7 @@
 import { api } from './api.js';
 import { createMap } from './map.js';
-import { renderCharts, tableFor } from './charts.js';
-import { startStars } from './stars.js';
+import { renderCharts, tableFor, renderVegCharts } from './charts.js';
+import { createDrawer, centroid } from './draw.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
@@ -10,12 +10,12 @@ const sign = (n) => (n > 0 ? '+' : '') + n;
 const ICON = {
   warning: '<svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 1 15 14H1L8 1zm-.8 5v4h1.6V6H7.2zm0 5v1.6h1.6V11H7.2z"/></svg>',
   watch: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 4v4.5l3 1.8" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>',
-  info: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7" fill="currentColor"/><path d="M7.2 7h1.6v5H7.2zM7.2 4h1.6v1.6H7.2z" fill="#0e1530"/></svg>',
-  good: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7" fill="currentColor"/><path d="m4.5 8.2 2.3 2.3 4.7-4.8" fill="none" stroke="#0e1530" stroke-width="1.8"/></svg>',
+  info: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7" fill="currentColor"/><path d="M7.2 7h1.6v5H7.2zM7.2 4h1.6v1.6H7.2z" fill="#151D27"/></svg>',
+  good: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7" fill="currentColor"/><path d="m4.5 8.2 2.3 2.3 4.7-4.8" fill="none" stroke="#151D27" stroke-width="1.8"/></svg>',
 };
 const LEVEL_LABEL = { warning: 'Warning', watch: 'Watch', info: 'Info', good: 'Normal' };
 
-const state = { fields: [], fieldId: null, analysis: null, crops: [], goals: [], plans: [], priorities: [4, 3, 2, 3], tab: 'recent' };
+const state = { fields: [], fieldId: null, boundary: null, veg: null, vegFor: null, analysis: null, crops: [], goals: [], plans: [], priorities: [4, 3, 2, 3], tab: 'recent' };
 
 // ------------------------------------------------------------------ status
 function status(text, mode = '') {
@@ -27,13 +27,15 @@ function readForm() {
   return {
     name: $('f-name').value.trim() || 'Unnamed field', lat: +$('f-lat').value, lon: +$('f-lon').value,
     soil: $('f-soil').value, drainage: $('f-drainage').value, irrigation: $('f-irrigation').value,
-    previous_crop: $('f-previous').value, notes: '',
+    previous_crop: $('f-previous').value, notes: '', boundary: state.boundary,
   };
 }
 function fillForm(f) {
   $('f-name').value = f.name; $('f-lat').value = f.lat; $('f-lon').value = f.lon;
   $('f-soil').value = f.soil; $('f-drainage').value = f.drainage; $('f-irrigation').value = f.irrigation;
   $('f-previous').value = f.previous_crop;
+  state.boundary = f.boundary || null;
+  drawer?.set(state.boundary);
 }
 
 // ------------------------------------------------------------------ fields
@@ -42,6 +44,8 @@ function renderSaved() {
     <button type="button" class="saved-item" data-id="${f.id}" aria-current="${f.id === state.fieldId}">
       <span>${esc(f.name)}</span><small>${f.lat.toFixed(2)}, ${f.lon.toFixed(2)}</small></button>`).join('')
     : '<span class="muted" style="font-size:.8rem">No saved fields yet.</span>';
+  const current = state.fields.find(f => f.id === state.fieldId);
+  $('demo-badge').hidden = !current?.demo;
   $('delete-btn').hidden = state.fieldId == null;
   $('save-btn').textContent = state.fieldId == null ? 'Save field' : 'Update field';
 }
@@ -60,13 +64,58 @@ async function analyze() {
     const t0 = performance.now();
     const d = await api.analysis(f);
     state.analysis = d;
-    renderTelemetry(d); renderAdvisories(d); renderCharts(d); renderTable(); renderSuitability(d); renderSeasons(d); renderProvenance(d, f);
+    renderHero(d, f); renderTelemetry(d); renderAdvisories(d); renderCharts(d); renderTable(); renderSuitability(d); renderSeasons(d); renderProvenance(d, f);
+    renderSatellite(f, d);
     await rankPlans();
     const src = { live: 'live from NASA POWER', cache: 'from local cache', 'stale-cache': 'from an older cache (NASA POWER unreachable)', snapshot: 'from the offline snapshot' }[d.provenance.delivery];
-    status(`Signal locked · ${d.provenance.days.toLocaleString()} days of data ${src} · ${((performance.now() - t0) / 1000).toFixed(1)} s · latest day ${d.now.date}`, d.provenance.delivery === 'live' || d.provenance.delivery === 'cache' ? '' : 'error');
+    status(`Analysis complete · ${d.provenance.days.toLocaleString()} days of data ${src} · ${((performance.now() - t0) / 1000).toFixed(1)} s · latest day ${d.now.date}`, d.provenance.delivery === 'live' || d.provenance.delivery === 'cache' ? '' : 'error');
   } catch (e) {
     status(`Analysis failed: ${e.message}`, 'error');
   } finally { $('analyze-btn').disabled = false; }
+}
+
+// ------------------------------------------------------------------ map hero overlays
+function sparkline(soil) {
+  const all = [...soil.root, ...soil.root_nrt, ...soil.normal_p10, ...soil.normal_p90].filter(v => v != null);
+  const lo = Math.min(...all), hi = Math.max(...all), W = 266, H = 70, n = soil.dates.length;
+  const x = (i) => (i / (n - 1)) * W, y = (v) => H - 4 - ((v - lo) / (hi - lo || 1)) * (H - 8);
+  const path = (arr) => arr.map((v, i) => v == null ? null : `${x(i).toFixed(1)},${y(v).toFixed(1)}`)
+    .reduce((acc, p) => { if (p) acc[acc.length - 1].push(p); else if (acc[acc.length - 1].length) acc.push([]); return acc; }, [[]])
+    .filter(seg => seg.length > 1).map(seg => 'M' + seg.join('L')).join('');
+  const band = soil.normal_p90.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join('L') + 'L' +
+    soil.normal_p10.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).reverse().join('L');
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Root-zone wetness over 12 months against its typical range">
+    <path d="M${band}Z" fill="rgba(163,174,189,.16)"/>
+    <path d="${path(soil.root)}" fill="none" stroke="var(--s-soil)" stroke-width="2"/>
+    <path d="${path(soil.root_nrt)}" fill="none" stroke="var(--s-soil)" stroke-width="2" stroke-dasharray="4 3"/></svg>`;
+}
+
+function renderHero(d, f) {
+  const field = state.fields.find(x => x.id === state.fieldId);
+  $('hero-loc').innerHTML = `<b>${esc(f.name)}</b> · <span class="mono">${d.location.lat.toFixed(2)}, ${d.location.lon.toFixed(2)}</span>${field?.demo ? ' · <span style="color:var(--st-watch)">demo</span>' : ''}`;
+  $('hero-date').textContent = `NASA POWER · to ${fmtDay(d.now.date)}`;
+  $('hero-spark').innerHTML = sparkline(d.soil);
+  $('hero-spark-range').textContent = d.soil.nrt_break ? 'dashed = NRT' : '12 mo';
+  const colour = { 'Well suited': 'var(--st-good)', Marginal: 'var(--st-watch)', 'Poor fit': 'var(--st-warning)' };
+  $('hero-crops').innerHTML = d.suitability.slice(0, 7).map(s => `<div class="ov-row" title="${esc(s.status)}"><span>${esc(s.name)}</span>
+    <span class="bar"><i style="width:${s.thermal_reliability}%;background:${colour[s.status]}"></i></span><span class="v">${s.thermal_reliability}%</span></div>`).join('');
+  const n = d.now, g = d.gdd, fr = d.frost;
+  const chip = (k, v, extra = '') => `<div class="stat-chip"><div class="k"><span>${k}</span>${extra}</div><div class="v">${v}</div></div>`;
+  $('hero-stats').innerHTML = [
+    chip('Frost-free season', fr.frost_years ? `${fr.frost_free_days_median} d` : 'no frost'),
+    chip('GDD₅ to date', g.to_date.toLocaleString(), g.to_date_normal ? `<span>${sign(g.to_date - g.to_date_normal)}</span>` : ''),
+    chip('Rain · 30 d', `${n.rain_30d} mm`, n.rain_30d_normal ? `<span>${Math.round(100 * n.rain_30d / n.rain_30d_normal)}%</span>` : ''),
+    '<div class="stat-chip" id="hero-legend"></div>',
+  ].join('');
+  updateLegendChip();
+}
+
+function updateLegendChip() {
+  const el = $('hero-legend'), l = mapCtl?.current;
+  if (!el || !l) return;
+  el.innerHTML = l.legend
+    ? `<div class="k"><span>${esc(l.title.split(' (')[0])}</span></div><div class="k"><span>${esc(l.legend.low)}</span><span>${esc(l.legend.high)}</span></div><div class="ramp" style="background:linear-gradient(90deg,${l.legend.colors.join(',')})"></div>`
+    : `<div class="k"><span>Layer</span></div><div class="v" style="font-size:.78rem">${esc(l.title)}</div>`;
 }
 
 function tile(label, value, unit, sub, extra = '') {
@@ -225,10 +274,72 @@ function wirePlanner() {
 
 // ------------------------------------------------------------------ map & UI wiring
 let mapCtl;
+let drawer;
 function onPick(lat, lon) {
   $('f-lat').value = lat; $('f-lon').value = lon;
+  if (state.boundary) { state.boundary = null; drawer.clear(); }
   if (state.fieldId != null) { state.fieldId = null; $('f-name').value = 'New field'; renderSaved(); }
+  $('hero-loc').innerHTML = `<b>New target</b> · <span class="mono">${lat}, ${lon}</span>`;
   status(`Target set at ${lat}, ${lon}. Press Analyze to pull NASA data.`);
+}
+
+// ------------------------------------------------------------------ field boundary + NASA HLS record
+function updateDrawUI(st) {
+  const show = (id, on) => { $(id).hidden = !on; };
+  show('draw-start', !st.drawing); show('draw-undo', st.drawing && st.points > 0); show('draw-done', st.drawing);
+  show('draw-cancel', st.drawing); show('draw-clear', !st.drawing && !!st.shape);
+  $('draw-start').textContent = st.shape ? 'Redraw boundary' : 'Draw field boundary';
+  $('draw-status').textContent = st.drawing ? `${st.points} vertices · ${st.areaHa.toFixed(2)} ha` : st.shape ? `Boundary ${st.areaHa.toFixed(2)} ha` : '';
+}
+
+function finishBoundary() {
+  const shape = drawer.finish();
+  if (!shape) { status('Click at least 3 vertices, then Done.', 'error'); return; }
+  state.boundary = shape;
+  const [lat, lon] = centroid(shape);
+  $('f-lat').value = +lat.toFixed(4); $('f-lon').value = +lon.toFixed(4);
+  mapCtl.setTarget(+lat.toFixed(4), +lon.toFixed(4), { fly: false });
+  status('Boundary set. Press Analyze field to read its NASA HLS record (first time: up to a minute).');
+}
+
+async function renderSatellite(f, d) {
+  const panel = $('sat-panel');
+  if (!f.boundary) { panel.innerHTML = '<div class="empty-state">Draw a field boundary on the map, then press Analyze field.</div>'; return; }
+  const key = JSON.stringify(f.boundary);
+  state.vegFor = key;
+  panel.innerHTML = '<div class="mission-status busy"><span class="scanner"></span><span>Reading NASA HLS images inside the boundary (cloud-masked, 5 seasons)…</span></div>';
+  try {
+    const veg = await api.vegetation(f.boundary);
+    if (state.vegFor !== key) return;
+    state.veg = veg;
+    const wx = Object.fromEntries(d.seasons.map((s) => [s.label, s]));
+    const st = veg.stats, n = (v, k = 3) => (v == null ? '—' : v.toFixed(k));
+    const chip = (k, v) => `<div class="stat-chip"><div class="k"><span>${k}</span></div><div class="v">${v}</div></div>`;
+    panel.innerHTML = `<div class="sat-stats">${[chip('Field area', `${veg.area_ha.toFixed(2)} ha`), chip('Images found', st.images_found),
+        chip('Clear field images', st.clear_images), chip('Read now / cached', `${st.images_read_now} / ${st.images_from_cache}`), chip('Time', `${st.seconds} s`)].join('')}</div>
+      <div class="season-key" id="season-key"></div>
+      <div class="sat-grid">
+        <div><div class="chart-title"><h3>NDVI (greenness) inside the boundary</h3></div><div class="chart-box tall"><canvas id="c-ndvi" aria-label="NDVI by season"></canvas></div></div>
+        <div><div class="chart-title"><h3>NDMI (canopy moisture) inside the boundary</h3></div><div class="chart-box tall"><canvas id="c-ndmi" aria-label="NDMI by season"></canvas></div></div>
+      </div>
+      <p class="chart-note">Each point is one image: the median of clear pixels inside the boundary; images with under ${Math.round(veg.method.min_clear_share * 100)}% of the field clear are dropped. Growing months only (${esc(veg.method.growing_months)}).</p>
+      <div class="data-table-wrap" style="max-height:none"><table><thead><tr><th>Season</th><th class="num">Images</th><th class="num">Clear</th><th>Green-up</th><th>Peak date</th>
+        <th class="num">Peak NDVI</th><th class="num">Mean NDVI</th><th class="num">Peak NDMI</th><th class="num">Rain (frost-free)</th><th class="num">ET₀</th><th class="num">Longest dry spell</th><th class="num">Heat days</th></tr></thead><tbody>
+        ${veg.seasons.map((s) => { const w = wx[s.label]; return `<tr><td><b>${esc(s.label)}</b></td><td class="num">${s.images}</td><td class="num">${s.clear_images}</td>
+          <td>${s.greenup_date ? fmtDay(s.greenup_date) : s.greenup_cloud_gap ? '<span class="muted">cloud gap</span>' : '—'}</td><td>${s.peak_date ? fmtDay(s.peak_date) : '—'}</td>
+          <td class="num">${n(s.peak_ndvi)}</td><td class="num">${n(s.mean_ndvi)}</td><td class="num">${n(s.peak_ndmi)}</td>
+          <td class="num">${w ? w.season_rain_mm + ' mm' : '—'}</td><td class="num">${w ? w.season_et0_mm + ' mm' : '—'}</td><td class="num">${w ? w.longest_dry_spell + ' d' : '—'}</td><td class="num">${w ? w.heat_days : '—'}</td></tr>`; }).join('')}
+      </tbody></table></div>
+      <p class="chart-note">Weather columns come from NASA POWER for the same season (frost-free window); “—” where the season is not complete in the weather record.</p>
+      <details><summary class="label" style="cursor:pointer">All ${veg.observations.length} image readings</summary><div class="data-table-wrap"><table><thead><tr><th>Date</th><th>Sensor</th><th class="num">Field clear</th><th class="num">Tile cloud</th><th class="num">NDVI</th><th class="num">NDMI</th></tr></thead><tbody>
+        ${veg.observations.slice().reverse().map((o) => `<tr><td>${o.date}</td><td>${o.sensor}</td><td class="num">${Math.round(o.clear_pct * 100)}%</td><td class="num">${o.scene_cloud ?? '—'}%</td><td class="num">${n(o.ndvi)}</td><td class="num">${n(o.ndmi)}</td></tr>`).join('')}
+      </tbody></table></div></details>
+      <p class="chart-note">${esc(veg.attribution)} · ${esc(veg.method.cloud_mask)} · NDVI ${esc(veg.method.ndvi)} · NDMI ${esc(veg.method.ndmi)} · bands: Sentinel-2 ${Object.values(veg.method.bands['Sentinel-2']).join('/')}, Landsat ${Object.values(veg.method.bands.Landsat).join('/')}.</p>`;
+    const key2 = renderVegCharts(veg);
+    $('season-key').innerHTML = key2.map((k) => `<span><i style="background:${k.colour}"></i>${esc(k.label)}</span>`).join('');
+  } catch (e) {
+    if (state.vegFor === key) panel.innerHTML = `<div class="mission-status error">Satellite record unavailable: ${esc(e.message)}</div>`;
+  }
 }
 
 function wireLayers(cfg) {
@@ -238,6 +349,7 @@ function wireLayers(cfg) {
     $('layer-date').disabled = !l.dated;
     $('layer-date').value = l.dated ? mapCtl.date : '';
     $('layer-desc').textContent = l.description + (l.dated ? ` · ${mapCtl.date}` : '');
+    updateLegendChip();
     $('layer-legend').innerHTML = l.legend ? `<span class="legend-ramp">${esc(l.legend.low)} <span class="ramp" style="background:linear-gradient(90deg,${l.legend.colors.join(',')})"></span> ${esc(l.legend.high)}</span>` : '';
   };
   $('layer-date').max = new Date().toISOString().slice(0, 10);
@@ -295,13 +407,8 @@ function wireUI() {
   });
 }
 
-function startClock() {
-  const tick = () => { $('utc').textContent = 'UTC ' + new Date().toISOString().slice(11, 19); };
-  tick(); setInterval(tick, 1000);
-}
-
 async function boot() {
-  startStars($('stars')); startClock(); wireUI(); wirePlanner();
+  wireUI(); wirePlanner();
   try {
     await api.health(); $('api-dot').className = 'dot ok';
   } catch { $('api-dot').className = 'dot err'; status('Backend unreachable. Start it with ./run.sh', 'error'); return; }
@@ -309,7 +416,17 @@ async function boot() {
   state.crops = cropInfo.crops; state.goals = cropInfo.goals; state.plans = structuredClone(cropInfo.default_rotations);
   $('f-previous').innerHTML = state.crops.map(c => `<option>${esc(c.name)}</option>`).join('');
   renderPriorities();
-  mapCtl = createMap($('map'), layers, onPick);
+  mapCtl = createMap($('map'), layers, onPick, () => drawer?.drawing);
+  drawer = createDrawer(mapCtl.map, { color: '#4FD29A', onChange: updateDrawUI });
+  // While tracing, fade the coarse satellite overlay so the field edges in the basemap are visible.
+  let savedOpacity = null;
+  const dim = () => { savedOpacity = +$('layer-opacity').value; mapCtl.setOpacity(0.1); $('layer-opacity').value = 0.1; };
+  const undim = () => { if (savedOpacity != null) { mapCtl.setOpacity(savedOpacity); $('layer-opacity').value = savedOpacity; savedOpacity = null; } };
+  $('draw-start').onclick = () => { if (mapCtl.map.getZoom() < 14) mapCtl.map.setView(mapCtl.map.getCenter(), 15); dim(); drawer.start(); };
+  $('draw-undo').onclick = () => drawer.undo();
+  $('draw-done').onclick = () => { finishBoundary(); if (!drawer.drawing) undim(); };
+  $('draw-cancel').onclick = () => { drawer.cancel(); undim(); };
+  $('draw-clear').onclick = () => { drawer.clear(); state.boundary = null; };
   wireLayers(layers);
   await loadFields();
   if (state.fields.length) { const f = state.fields[0]; state.fieldId = f.id; fillForm(f); renderSaved(); analyze(); }

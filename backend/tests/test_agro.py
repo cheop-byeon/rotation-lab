@@ -88,3 +88,12 @@ def test_unviable_crop_sinks_rotation():
     ranked = {r["name"]: r for r in crops.rank_rotations(profile, [4, 3, 2, 3], crops.DEFAULT_ROTATIONS, suit)}
     assert ranked["Forage and oilseed"]["viability"] == 0.6
     assert ranked["Forage and oilseed"]["score"] < ranked["Legume break"]["score"]
+
+
+def test_legume_after_legume_is_penalised():
+    profile = {"soil": "Loamy", "drainage": "Good", "irrigation": "No", "previous_crop": "Barley"}
+    plans = [{"name": "ley-bean", "years": ["Grass–clover ley", "Faba bean", "Barley"]},
+             {"name": "ley-cereal", "years": ["Grass–clover ley", "Barley", "Faba bean"]}]
+    ranked = {r["name"]: r for r in crops.rank_rotations(profile, [4, 1, 1, 4], plans, None)}
+    assert ranked["ley-cereal"]["score"] > ranked["ley-bean"]["score"]
+    assert any("back to back" in x for x in ranked["ley-bean"]["reasons"])

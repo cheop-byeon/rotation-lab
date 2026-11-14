@@ -4,7 +4,18 @@ Climate-aware crop and rotation planning for any field on Earth, built for the N
 [Field Shift: Adapting Farms with NASA Data](https://www.spaceappschallenge.org/2026/challenges/field-shift-adapting-farms-with-nasa-data/).
 
 Pick a field on the map. Rotation Lab pulls **10 years of daily NASA POWER data** for that location, overlays **live NASA GIBS satellite
-imagery**, and returns:
+imagery**, and presents the result in **two views on the same data**:
+
+| View | URL | What it shows |
+| --- | --- | --- |
+| **Field view** (default) | `/` | One field at a glance, in plain words: conditions right now, things to consider, a season calendar, how each crop has done in this climate, and a check of *your own* rotation plan. Bright and high-contrast for a phone outdoors, printable, with the numbers one tap away. |
+| **Data view** | `/data` | The full analysis: map-led layout with satellite layers and data overlays, telemetry, rule-based advisories with evidence, time series, crop-season simulation, weighted rotation scoring, season log, provenance. |
+
+Both views are for anyone: they differ in depth, not in who they are for. Growers are the experts on their own fields, so the
+field view reports what the records show and offers options. It does not give orders, and the rotation it evaluates is the
+one the grower sets. The old `/specialist` and `/farmer` links redirect to `/data` and `/`.
+
+The data view includes:
 
 - **Field telemetry**: temperature, 30-day rain vs. normal, root-zone soil wetness percentile, water balance (rain − ET₀), heat units, frost-free season.
 - **Mission briefing**: plain-language advisories (dry/wet root zone, water deficit, frost and planting windows, season running ahead/behind, heat-stress and dry-spell trends). Every advisory shows the evidence behind it.
@@ -59,12 +70,36 @@ If port 8000 is already in use, pick another port with `PORT=…`.
 
 ### Using the app
 
-1. The demo field **Stjørdal 01** (Trøndelag, Norway) loads and is analyzed automatically.
-2. To analyze another place, **click the map** (or type `lat, lon` into *Find place* and press Enter, or use *Use my location*), set soil, drainage, irrigation and previous crop, and press **▶ Analyze field**.
-   A new location takes ~3–5 s the first time. It is then cached for 12 hours.
-3. **Save field** stores it in the local database so it appears in the field console next time.
-4. Scroll down through telemetry, briefing, charts, crop suitability, the rotation planner, the season log and data provenance.
+Switch between the two views with **Field view / Data view** at the top right.
+
+The demo field **Stjørdal 01** (Trøndelag, Norway) loads automatically. Its location is the Stjørdal weather-query point, and its soil, drainage,
+irrigation and previous crop are **illustrative example values, not a real farm's records**. Both views label it as a demo.
+Editing and saving it, or saving your own field, removes the label.
+
+**Field view (`/`)**
+1. Press **Choose my field**, tap the field on the map (or *Use my location*), and tap your soil, drainage, irrigation and this year's crop.
+2. Press **Show my field**. A new location takes ~3–5 s the first time, then it is cached for 12 hours. **Save this field** keeps it for next time.
+3. Read top to bottom: *Right now → Things to consider → Your season → Crops in your climate → Your rotation → Where does this come from?*
+   Tap **The numbers** on any card to see the evidence.
+4. In **Your rotation**, set your own crop for each of the next three years on the field tiles; each change is checked against ten years of weather at the field.
+   Until you change it, the tiles start from the sequence that scores best here, and the page says so. *Other sequences that score well here* lists ideas
+   built from the crops that do well in this climate (best crop of each crop family), each with **Use this**. Pick what matters most to you to re-weight the scores.
+
+**Outlining a field (both views).** Optional, but it unlocks the field's own satellite record. In the field view, open
+*Choose my field* → **Outline my field** and tap each corner, then **Done**. In the data view, use **Draw field boundary** in the map
+toolbar (the satellite overlay fades while you trace). The outline is saved with the field (0.3–2000 ha). The first satellite read
+takes ~10–20 s for five seasons, then it is cached.
+
+**Data view (`/data`)**
+1. Click the map (or type `lat, lon` into *Go to*, or *Use my location*), set the field inputs and press **Analyze field**. Switch satellite layers and dates in the map toolbar.
+2. Scroll through conditions, briefing, trends, crop suitability, the rotation planner, the season log and data provenance.
    *Download daily CSV* in the provenance section exports the raw data used.
+
+### Translating the field view
+
+All field-view text is in `frontend/js/i18n/en.js`. To add a language, copy it (e.g. `nb.js`), translate the strings (keep the
+`{placeholders}`), and import it in `frontend/js/field.js` in place of `en`. Dates and month names follow the file's `locale`.
+Advisories reach the field view as a language-neutral `code` plus `params` from the API, so they are phrased in the language file, not in the backend.
 
 ### Offline demo
 
@@ -146,12 +181,23 @@ available day, and you can choose any date in the map toolbar.
 
 The GIBS layers are for visual context. The numerical analysis uses NASA POWER only.
 
-### 4. Non-NASA map tiles
+### 4. NASA HLS: the field's own satellite record (when a field outline is drawn)
+
+- **Product:** [HLS v2.0](https://lpdaac.usgs.gov/products/hlss30v002/) (Harmonized Landsat Sentinel-2) from NASA LP DAAC: 30 m surface reflectance from Landsat 8/9 (`L30`) and Sentinel-2 (`S30`), harmonised so both sensors can be used together.
+- **Access:** the copy hosted openly on [Microsoft Planetary Computer](https://planetarycomputer.microsoft.com/dataset/hls2-s30) (collections `hls2-s30`, `hls2-l30`), with an anonymous access token. **No Earthdata login needed.** Only the pixels inside the field are read, using HTTP range requests on the cloud-optimised GeoTIFFs.
+- **Per image:** pixels flagged by HLS **Fmask** as cloud, adjacent to cloud, cloud shadow, snow/ice or water are removed. Images with under 60% of the field clear are counted but give no value. **NDVI** = (NIR − Red)/(NIR + Red) and **NDMI** = (NIR − SWIR1)/(NIR + SWIR1), each the median over the clear pixels.
+  Bands: Sentinel-2 `B04`/`B8A`/`B11`, Landsat `B04`/`B05`/`B06`.
+- **Seasons:** the last five, growing months only (Apr–Oct north, Oct–Apr south, all year in the tropics). Per season: images, clear images, green-up date, peak NDVI and date, mean NDVI, peak NDMI. Green-up is reported as *hidden by cloud* when no clear image exists in the three weeks before it.
+- **Joined with weather:** the data view lines each satellite season up with the NASA POWER weather for the same season (rain, ET₀, longest dry spell, heat days). The field view names the least green season and checks whether that season's weather stands out. If all peaks are within 0.08 NDVI, it says no season stands out.
+- **Cross-checks seen in testing (Stjørdal):** Sentinel-2 and Landsat values from the same day agree within about 0.02 NDVI, and emergence in early June matches the weather-based sowing window.
+- **Limits:** cloudy regions have gaps. A 30 m pixel needs fields of at least 0.3 ha, and edge pixels mix with the neighbouring land. NDVI differences between seasons also reflect *which crop* was grown.
+
+### 5. Non-NASA map tiles
 
 - **Esri World Imagery** basemap: high-resolution imagery for locating the actual parcel, since GIBS stops at ~250 m.
 - **Esri World Boundaries and Places**: place-name and boundary labels. GIBS `Reference_Labels_15m` returns error pages instead of transparent tiles where there are no labels, which rendered as black squares.
 
-### 5. Inputs from the farmer and built-in assumptions
+### 6. Inputs from the grower and built-in assumptions
 
 - **Farmer inputs:** soil texture, drainage, irrigation, previous crop, and the rotation priorities. Unknown values are flagged in the ranking.
 - **Crop parameters** (`backend/app/crops.py`): base temperature, GDD to maturity, sowing temperature, frost tolerance, heat limit and FAO-56 crop coefficient for 13 crops.
@@ -164,18 +210,23 @@ The GIBS layers are for visual context. The numerical analysis uses NASA POWER o
 - **Frost**: 2 m daily minimum ≤ 0 °C (≤ −3 °C kills frost-tolerant crops). Seasons run mid-winter to mid-winter (1 Jan in the north, 1 Jul in the south), so southern-hemisphere and frost-free tropical sites work.
 - **Crop simulation**: per past season, sow when the 7-day mean temperature reaches the crop's sowing temperature after the last damaging frost *and* the soil is moist (rain-season onset in the tropics). Accumulate GDD to maturity, stopping at a killing frost. Water need = Kc × ET₀ over the cycle.
 - **Rotation ranking**: weighted soil-health, water, diversity and stability components. A **viability gate** scales the score down when a crop in the rotation rarely matures at the location.
+  Two nitrogen-fixing crops back to back (e.g. grass–clover then faba bean) count as a repeat: both are legumes, they share root diseases, and a cereal should use the nitrogen a legume leaves.
 
 ## Architecture
 
 ```
 frontend/            static HTML/CSS/JS (Leaflet 1.9.4 + Chart.js 4.4.1 from cdnjs, no build step)
+  index.html         field view (js/field.js, css/field.css, js/i18n/en.js)
+  data.html          data view (js/data.js, js/charts.js, css/data.css)
+  js/api.js, js/map.js, js/draw.js  shared API client, map, field-outline drawing
 backend/app/
   power.py           NASA POWER client: daily + climatology, retries, SQLite cache, snapshot fallback
   agro.py            agroclimatic engine: ET₀, GDD, frost dates, seasons, anomalies, soil-moisture percentiles, splice detection
   crops.py           crop catalog, crop-season simulation/suitability, rotation ranking
-  advisor.py         rule-based advisories with evidence
+  hls.py             NASA HLS field record: STAC search, Fmask cloud masking, NDVI/NDMI per image, season summaries, cache
+  advisor.py         rule-based advisories with evidence, plus language-neutral codes for the field view
   main.py            FastAPI routes + static hosting
-  db.py              SQLite (cache + saved fields)
+  db.py              SQLite (POWER + HLS caches, saved fields with optional outline and demo flag)
 scripts/snapshot.py  save offline copies of POWER data
 ```
 
@@ -184,6 +235,7 @@ scripts/snapshot.py  save offline copies of POWER data
 | `GET /api/analysis?lat&lon&soil&drainage&irrigation&previous_crop` | Full field analysis |
 | `POST /api/rotations/rank` | Rank rotations (optionally with the climate of `lat`/`lon`) |
 | `GET /api/layers` | NASA GIBS layer configuration |
+| `POST /api/vegetation` `{boundary, seasons}` | NASA HLS NDVI/NDMI record for a field outline (GeoJSON Polygon) |
 | `GET /api/export.csv?lat&lon` | Daily NASA POWER data + ET₀ as CSV |
 | `GET/POST/PUT/DELETE /api/fields` | Saved fields |
 | `GET /api/health` | Server status |
@@ -203,7 +255,7 @@ Start with one parcel in Stjørdal and use the same field ID across all inputs.
 
 | Dataset or input | Minimum to collect | Source | Status |
 | --- | --- | --- | --- |
-| Field boundary | One verified WGS84 GeoJSON Polygon or MultiPolygon with a stable field ID. Use a representative point inside the parcel for the weather query. | Grower-approved boundary or open agricultural parcel data verified against the actual field | **Not started.** Fields are a single point. |
+| Field boundary | One verified WGS84 GeoJSON Polygon or MultiPolygon with a stable field ID. Use a representative point inside the parcel for the weather query. | Grower-approved boundary or open agricultural parcel data verified against the actual field | **Partial.** Growers can draw and save a Polygon outline, and its centre is used for the weather query. Importing official parcel data is not done. |
 | Historical weather | Daily temperature and precipitation with dates, query coordinates, units, retrieval date, and missing-value metadata. | [NASA POWER Daily API](https://power.larc.nasa.gov/docs/services/api/temporal/daily/) | **Done.** 10 years, 9 parameters, provenance and missing-day counts in the UI. See [Data used](#data-used). |
 | Soil texture and drainage | Mapped topsoil texture and natural drainage for the parcel, plus coverage and source date. Where mapping is absent, record grower observations or a soil report and label the evidence source. | [NIBIO Kilden soil area reports](https://www.nibio.no/tjenester/kilden/veiledning-arealrapport) | **Partial.** Grower-entered only, and the evidence source is not recorded yet. |
 | Farm records and priorities | Previous crop at minimum, ideally several years of crop history, plus irrigation access and weights for soil health, water resilience, diversity, and yield stability. Record unknowns explicitly. | Grower or adviser | **Partial.** Previous crop, irrigation, priority weights and "Unknown" values are supported. Multi-year crop history is not. |
@@ -215,7 +267,7 @@ The crop parameters, the scoring rules and the viability gate still need review 
 ### Optional datasets
 
 - **Satellite vegetation comparison.** Use two comparable Sentinel-2 L2A acquisitions over the parcel. Retain acquisition dates, product IDs, valid-pixel coverage, red (B04), near infrared (B08), and the scene classification layer for masking. Compute NDVI after masking and clipping. Interpret changes alongside crop stage and management history. [Copernicus Sentinel-2 L2A](https://documentation.dataspace.copernicus.eu/APIs/SentinelHub/Data/S2L2A.html)
-  *Today the map shows MODIS 8-day NDVI at 250 m for visual context only. A parcel-level Sentinel-2 NDVI (10 m) is not implemented.*
+  *Partly done: with a drawn outline, the app reads a 30 m NDVI/NDMI record from NASA HLS (Landsat + Sentinel-2) for the last five seasons. Native 10 m Sentinel-2 is not used.*
 - **Terrain for geographic 3D.** Obtain a digital elevation model covering the same parcel, with resolution, vertical datum, and usage terms recorded.
   *The mockup's illustrative 3D field preview was not carried over into this platform.*
 

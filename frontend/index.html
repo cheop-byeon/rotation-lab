@@ -3,227 +3,132 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Rotation Lab · Farm decisions from orbit</title>
-  <meta name="description" content="Climate-aware crop and rotation planning built on NASA POWER and NASA GIBS satellite data. NASA Space Apps 2026 · Field Shift.">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='14' fill='%2362e3ff'/%3E%3Cellipse cx='32' cy='32' rx='29' ry='10' fill='none' stroke='%239ef0c8' stroke-width='3' transform='rotate(-25 32 32)'/%3E%3C/svg%3E">
+  <title>Rotation Lab · Field view</title>
+  <meta name="description" content="Ten years of NASA weather and soil records for your field, with crop and rotation checks.">
+  <meta name="theme-color" content="#F6F4EE">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232E7D32'/%3E%3Cpath d='M18 44c14 0 28-10 28-28-16 0-28 10-28 28z' fill='%23FFFDF8'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/field.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" defer></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" defer></script>
-  <script type="module" src="/js/app.js"></script>
+  <script type="module" src="/js/field.js"></script>
 </head>
 <body>
-<canvas id="stars" aria-hidden="true"></canvas>
-
-<header class="topbar">
-  <a class="brand" href="#top" aria-label="Rotation Lab home">
-    <svg viewBox="0 0 64 64" aria-hidden="true">
-      <circle cx="32" cy="32" r="13" fill="#0e1530" stroke="#62e3ff" stroke-width="2"/>
-      <path d="M26 37c4-1 8-5 9-12-6 1-10 5-9 12z" fill="#9ef0c8"/>
-      <path d="M26 37l6-7" stroke="#0e1530" stroke-width="1.5"/>
-      <ellipse cx="32" cy="32" rx="29" ry="10" fill="none" stroke="#62e3ff" stroke-opacity=".55" stroke-width="1.5" transform="rotate(-25 32 32)"/>
-      <circle cx="57" cy="20" r="3" fill="#fc3d21"/>
-    </svg>
-    <span><b>ROTATION LAB</b><small>FARM DECISIONS FROM ORBIT</small></span>
+<header class="bar">
+  <a class="brand" href="/" aria-label="Rotation Lab home">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#2E7D32"/><path d="M9 22c7 0 14-5 14-14-8 0-14 5-14 14z" fill="#FFFDF8"/></svg>
+    <span>Rotation Lab</span>
   </a>
-  <nav class="topnav" aria-label="Sections">
-    <a href="#target">01 TARGET</a><a href="#telemetry">02 TELEMETRY</a><a href="#briefing">03 BRIEFING</a>
-    <a href="#signals">04 SIGNALS</a><a href="#crops">05 CROPS</a><a href="#planner">06 ROTATION</a><a href="#seasons">07 SEASONS</a><a href="#provenance">08 DATA</a>
+  <nav class="view-switch" aria-label="Choose view">
+    <a href="/" aria-current="page" data-t="app.viewField">Field view</a>
+    <a href="/data" data-t="app.viewData">Data view</a>
   </nav>
-  <div class="telemetry-strip">
-    <span class="utc" id="utc">UTC --:--:--</span>
-    <span id="api-status"><i class="dot" id="api-dot"></i>LINK</span>
-  </div>
 </header>
 
-<section class="hero" id="top">
-  <div>
-    <div class="eyebrow">NASA Space Apps 2026 · Field Shift</div>
-    <h1>Read your field<br>from <em>orbit</em>.</h1>
-    <p>Pick any field on Earth. Rotation Lab pulls a decade of NASA POWER climate and soil-moisture records for that spot,
-      overlays live NASA satellite imagery, and turns it into frost windows, water alerts, crop suitability and ranked crop rotations,
-      with the evidence behind every number.</p>
-    <div class="hero-badges">
-      <span class="badge">NASA POWER · MERRA-2 · GEOS-IT</span>
-      <span class="badge">NASA GIBS · MODIS · VIIRS · SMAP · GPM IMERG</span>
-      <span class="badge">FAO-56 methods</span>
-    </div>
-  </div>
-  <div class="orbit-art" aria-hidden="true">
-    <svg viewBox="0 0 400 400">
-      <defs>
-        <radialGradient id="planet" cx="40%" cy="35%" r="70%">
-          <stop offset="0" stop-color="#2fa477"/><stop offset=".45" stop-color="#1b5e7a"/><stop offset="1" stop-color="#0a1433"/>
-        </radialGradient>
-        <radialGradient id="glow"><stop offset=".6" stop-color="#62e3ff" stop-opacity=".25"/><stop offset="1" stop-color="#62e3ff" stop-opacity="0"/></radialGradient>
-      </defs>
-      <circle cx="200" cy="200" r="150" fill="url(#glow)"/>
-      <circle cx="200" cy="200" r="104" fill="url(#planet)"/>
-      <g stroke="#9ef0c8" stroke-opacity=".28" fill="none">
-        <path d="M110 170h180M100 200h200M110 230h180M130 260h140M130 140h140"/>
-        <path d="M200 96v208M160 104c-20 60-20 132 0 192M240 104c20 60 20 132 0 192"/>
-      </g>
-      <g fill="#c8801f" fill-opacity=".55"><rect x="168" y="178" width="22" height="14" rx="2"/><rect x="194" y="178" width="18" height="14" rx="2" fill="#2fa477"/><rect x="168" y="196" width="44" height="12" rx="2" fill="#9ef0c8" fill-opacity=".45"/></g>
-      <circle cx="200" cy="200" r="150" class="orbit-ring"/>
-      <ellipse cx="200" cy="200" rx="185" ry="70" class="orbit-ring" transform="rotate(-20 200 200)"/>
-      <g class="sat"><g transform="translate(350 200)"><rect x="-6" y="-6" width="12" height="12" fill="#e8edff"/><rect x="-24" y="-3" width="15" height="6" fill="#2e98c4"/><rect x="9" y="-3" width="15" height="6" fill="#2e98c4"/><path d="M-6 0 L-150 0" stroke="#62e3ff" stroke-opacity=".35" stroke-dasharray="3 5"/></g></g>
-      <g class="sat b"><g transform="translate(200 50)"><circle r="5" fill="#fc3d21"/><path d="M0 5 L0 60" stroke="#fc3d21" stroke-opacity=".35" stroke-dasharray="2 4"/></g></g>
-    </svg>
-  </div>
-</section>
-
 <main>
-  <!-- 01 TARGET -->
-  <section class="section" id="target" aria-labelledby="target-h">
-    <div class="section-head"><span class="num">01</span><h2 id="target-h">Target acquisition</h2>
-      <p>Click the map to drop a reticle on your field, or load a saved field. The satellite layers are live NASA GIBS imagery.</p></div>
-    <div class="target-grid">
-      <div class="panel map-wrap corner">
-        <div class="map-toolbar">
-          <label>Satellite layer <select id="layer-select"></select></label>
-          <label>Imagery date <input type="date" id="layer-date"></label>
-          <label>Overlay opacity <input type="range" id="layer-opacity" min="0" max="1" step="0.05" value="0.75"></label>
-          <label>Find place <input type="text" id="place" placeholder="lat, lon  e.g. 63.46, 10.92" autocomplete="off"></label>
+  <p class="tagline" data-t="app.tagline">Ten years of NASA weather records for your field, at a glance.</p>
+
+  <!-- FIELD -->
+  <section class="card field-card" aria-labelledby="field-h">
+    <div class="field-top">
+      <div>
+        <h2 id="field-h" data-t="field.title">Your field</h2>
+        <p class="field-name" id="field-name">—</p>
+      </div>
+      <button class="btn secondary" id="choose-btn" type="button" data-t="field.choose">Choose my field</button>
+    </div>
+    <p class="demo-note" id="demo-note" hidden></p>
+    <div class="mini-map" id="mini-map" aria-hidden="true"></div>
+
+    <div class="chooser" id="chooser" hidden>
+      <p class="hint" data-t="field.mapHint">Tap your field on the map, or use your location.</p>
+      <div class="pick-map" id="pick-map" role="application" aria-label="Map. Tap your field."></div>
+      <button class="btn secondary wide" id="locate-btn" type="button" data-t="field.useLocation">Use my location</button>
+      <p class="hint" id="pick-status" role="status"></p>
+      <div class="outline">
+        <p class="hint" id="outline-status" role="status"></p>
+        <div class="actions tight">
+          <button class="btn secondary" id="outline-start" type="button">Outline my field</button>
+          <button class="btn secondary" id="outline-undo" type="button" hidden data-t="outline.undo">Undo</button>
+          <button class="btn primary" id="outline-done" type="button" hidden data-t="outline.done">Done</button>
+          <button class="btn secondary" id="outline-cancel" type="button" hidden data-t="outline.cancel">Cancel</button>
+          <button class="btn secondary" id="outline-clear" type="button" hidden data-t="outline.clear">Remove outline</button>
         </div>
-        <div id="map" role="application" aria-label="Map — click to choose a field location"></div>
-        <div class="map-foot"><span id="layer-desc"></span><span id="layer-legend"></span></div>
       </div>
-
-      <div class="panel">
-        <form class="console" id="field-form" autocomplete="off">
-          <div class="label">Field console</div>
-          <div class="saved-list" id="saved-list" aria-label="Saved fields"></div>
-          <label class="field-input"><span>Field name</span><input type="text" id="f-name" required maxlength="80" value="New field"></label>
-          <div class="two">
-            <label class="field-input"><span>Latitude</span><input type="number" id="f-lat" step="0.0001" min="-60" max="75" required></label>
-            <label class="field-input"><span>Longitude</span><input type="number" id="f-lon" step="0.0001" min="-180" max="180" required></label>
-          </div>
-          <div class="two">
-            <label class="field-input"><span>Soil texture</span><select id="f-soil"><option>Unknown</option><option>Loamy</option><option>Sandy</option><option>Clayey</option><option>Silty</option><option>Peat</option></select></label>
-            <label class="field-input"><span>Drainage</span><select id="f-drainage"><option>Unknown</option><option>Good</option><option>Moderate</option><option>Poor</option></select></label>
-          </div>
-          <div class="two">
-            <label class="field-input"><span>Irrigation</span><select id="f-irrigation"><option>Unknown</option><option>No</option><option>Yes</option></select></label>
-            <label class="field-input"><span>Previous crop</span><select id="f-previous"></select></label>
-          </div>
-          <div class="btn-row">
-            <button class="btn primary" type="submit" id="analyze-btn">▶ Analyze field</button>
-            <button class="btn" type="button" id="save-btn">Save field</button>
-          </div>
-          <div class="btn-row">
-            <button class="btn ghost" type="button" id="locate-btn">◎ Use my location</button>
-            <button class="btn ghost danger" type="button" id="delete-btn" hidden>Delete</button>
-          </div>
-        </form>
+      <label class="q"><span data-t="field.name">Name of the field</span><input type="text" id="f-name" maxlength="80"></label>
+      <fieldset class="q"><legend data-t="field.qSoil">What is your soil like?</legend><div class="chips" id="q-soil"></div></fieldset>
+      <fieldset class="q"><legend data-t="field.qDrainage">After heavy rain, does water drain away?</legend><div class="chips" id="q-drainage"></div></fieldset>
+      <fieldset class="q"><legend data-t="field.qIrrigation">Can you water this field?</legend><div class="chips" id="q-irrigation"></div></fieldset>
+      <fieldset class="q"><legend data-t="field.qPrevious">What grew here this year?</legend><div class="chips crops-chips" id="q-previous"></div></fieldset>
+      <div class="actions">
+        <button class="btn primary" id="show-btn" type="button" data-t="field.show">Show my field</button>
+        <button class="btn secondary" id="save-btn" type="button" data-t="field.save">Save this field</button>
       </div>
-    </div>
-    <div class="mission-status" id="mission-status" role="status" aria-live="polite"><span class="scanner"></span><span id="mission-text">Standing by. Choose a field and press Analyze.</span></div>
-  </section>
-
-  <!-- 02 TELEMETRY -->
-  <section class="section" id="telemetry" aria-labelledby="telemetry-h">
-    <div class="section-head"><span class="num">02</span><h2 id="telemetry-h">Field telemetry</h2>
-      <p>Latest conditions from NASA POWER, compared with the same dates in the last 10 years.</p></div>
-    <div class="tiles" id="tiles"><div class="empty-state">No telemetry yet.</div></div>
-    <div class="context-line" id="context-line"></div>
-  </section>
-
-  <!-- 03 BRIEFING -->
-  <section class="section" id="briefing" aria-labelledby="briefing-h">
-    <div class="section-head"><span class="num">03</span><h2 id="briefing-h">Mission briefing</h2>
-      <p>Actionable guidance for this field. Open “Evidence” on any card to see the numbers behind it.</p></div>
-    <div class="advisories" id="advisories"><div class="empty-state">Awaiting analysis.</div></div>
-  </section>
-
-  <!-- 04 SIGNALS -->
-  <section class="section" id="signals" aria-labelledby="signals-h">
-    <div class="section-head"><span class="num">04</span><h2 id="signals-h">Climate signals</h2>
-      <p>Hover any chart for exact values. Each chart has a table view.</p></div>
-    <div class="panel">
-      <div class="tabs" role="tablist" aria-label="Charts">
-        <button role="tab" aria-selected="true" data-tab="recent">Last 120 days</button>
-        <button role="tab" aria-selected="false" data-tab="gdd">Heat accumulation</button>
-        <button role="tab" aria-selected="false" data-tab="soil">Soil moisture</button>
-        <button role="tab" aria-selected="false" data-tab="monthly">Monthly anomalies</button>
-      </div>
-      <div class="chart-pane" data-pane="recent" role="tabpanel">
-        <div class="chart-title"><h3>Daily air temperature (°C)</h3>
-          <div class="legend"><span><i style="background:var(--s-temp)"></i>Daily mean</span><span><i class="band" style="background:var(--s-temp)"></i>Daily min–max</span></div></div>
-        <div class="chart-box"><canvas id="c-temp" aria-label="Daily temperature chart"></canvas></div>
-        <div class="chart-title"><h3>Rain vs. evaporative demand (mm/day)</h3>
-          <div class="legend"><span><i class="bar" style="background:var(--s-rain)"></i>Rain</span><span><i class="dash" style="color:var(--s-et0)"></i>Reference ET₀</span></div></div>
-        <div class="chart-box"><canvas id="c-rain" aria-label="Daily rain and ET0 chart"></canvas></div>
-        <p class="chart-note">When the dashed ET₀ line sits above the rain bars for weeks, crops draw down soil water. ET₀ is estimated with the Hargreaves–Samani method.</p>
-      </div>
-      <div class="chart-pane" data-pane="gdd" role="tabpanel" hidden>
-        <div class="chart-title"><h3 id="gdd-title">Cumulative growing degree days</h3>
-          <div class="legend"><span><i style="background:var(--s-temp)"></i>This season</span><span><i class="dash" style="color:var(--ink-2)"></i>10-year mean</span><span><i class="band" style="background:var(--ink-2)"></i>10th–90th percentile</span></div></div>
-        <div class="chart-box tall"><canvas id="c-gdd" aria-label="Growing degree days chart"></canvas></div>
-        <p class="chart-note">Crops develop according to accumulated heat. A curve above the band means development is running ahead of normal.</p>
-      </div>
-      <div class="chart-pane" data-pane="soil" role="tabpanel" hidden>
-        <div class="chart-title"><h3>Root-zone soil wetness (0 = dry, 1 = saturated)</h3>
-          <div class="legend"><span><i style="background:var(--s-soil)"></i>MERRA-2 reanalysis</span><span><i class="dash" style="color:var(--s-soil)"></i>Near-real-time (GEOS-IT)</span><span><i class="band" style="background:var(--ink-2)"></i>Typical range (10th–90th pct)</span></div></div>
-        <div class="chart-box tall"><canvas id="c-soil" aria-label="Soil moisture chart"></canvas></div>
-        <p class="chart-note" id="soil-note"></p>
-      </div>
-      <div class="chart-pane" data-pane="monthly" role="tabpanel" hidden>
-        <div class="chart-title"><h3>Temperature anomaly vs. <span class="norm-period">long-term</span> normal (°C)</h3>
-          <div class="legend"><span><i class="bar" style="background:var(--s-temp)"></i>Warmer</span><span><i class="bar" style="background:var(--s-rain)"></i>Cooler</span></div></div>
-        <div class="chart-box"><canvas id="c-tanom" aria-label="Monthly temperature anomaly chart"></canvas></div>
-        <div class="chart-title"><h3>Rainfall vs. <span class="norm-period">long-term</span> normal (% difference)</h3>
-          <div class="legend"><span><i class="bar" style="background:var(--s-rain)"></i>Wetter</span><span><i class="bar" style="background:var(--s-temp)"></i>Drier</span></div></div>
-        <div class="chart-box"><canvas id="c-panom" aria-label="Monthly rainfall anomaly chart"></canvas></div>
-        <p class="chart-note">The current month is incomplete and has no rainfall anomaly yet.</p>
-      </div>
-      <button class="btn ghost table-toggle" id="table-toggle" type="button" aria-expanded="false">Show table view</button>
-      <div class="data-table-wrap" id="chart-table" hidden></div>
+      <p class="hint" data-t="field.hectaresNote">The weather data covers an area about 50 km wide around this point.</p>
     </div>
   </section>
 
-  <!-- 05 CROPS -->
-  <section class="section" id="crops" aria-labelledby="crops-h">
-    <div class="section-head"><span class="num">05</span><h2 id="crops-h">Crop suitability</h2>
-      <p>Each crop is simulated through every past season at this location: sowing once soil is warm and moist after the last damaging frost, then growing until it reaches maturity, a killing frost, or the end of the season.</p></div>
-    <div class="panel"><div class="data-table-wrap" style="max-height:none" id="suit-table"><div class="empty-state">Awaiting analysis.</div></div></div>
-  </section>
+  <p class="loading" id="loading" role="status" aria-live="polite"></p>
 
-  <!-- 06 PLANNER -->
-  <section class="section" id="planner" aria-labelledby="planner-h">
-    <div class="section-head"><span class="num">06</span><h2 id="planner-h">Rotation planner</h2>
-      <p>Edit crops, add sequences and set your priorities. Water and stability scores use this field's NASA climate history once a field has been analyzed.</p></div>
-    <div class="planner">
-      <div class="panel">
-        <div class="label" style="margin-bottom:10px">Farm priorities</div>
-        <div id="priorities"></div>
-        <p class="muted" style="font-size:.8rem">Weights are normalised; all at zero = equal weights.</p>
-        <button class="btn" type="button" id="add-plan">＋ Add rotation</button>
+  <div id="results" hidden>
+    <!-- RIGHT NOW -->
+    <section class="card" aria-labelledby="now-h">
+      <h2 id="now-h" data-t="now.title">Right now</h2>
+      <p class="headline" id="now-headline"></p>
+      <div class="gauges" id="gauges"></div>
+      <p class="small muted" id="now-note"></p>
+    </section>
+
+    <!-- TO DO -->
+    <section class="card" aria-labelledby="todo-h">
+      <h2 id="todo-h" data-t="todo.title">Things to consider</h2>
+      <div class="todo" id="todo"></div>
+    </section>
+
+    <!-- SEASON -->
+    <section class="card" aria-labelledby="season-h">
+      <h2 id="season-h" data-t="season.title">Your season</h2>
+      <div class="calendar" id="calendar"></div>
+      <ul class="season-facts" id="season-facts"></ul>
+    </section>
+
+    <!-- FIELD FROM SPACE -->
+    <section class="card" aria-labelledby="space-h">
+      <h2 id="space-h" data-t="space.title">Your field from space</h2>
+      <div id="space"></div>
+    </section>
+
+    <!-- CROPS -->
+    <section class="card" aria-labelledby="crops-h">
+      <h2 id="crops-h" data-t="crops.title">Crops in your climate</h2>
+      <p class="muted" data-t="crops.intro">How each crop would have done in each of the last 10 seasons here.</p>
+      <div id="crop-groups"></div>
+    </section>
+
+    <!-- PLAN -->
+    <section class="card" aria-labelledby="plan-h">
+      <h2 id="plan-h" data-t="plan.title">Your rotation</h2>
+      <p class="muted" data-t="plan.intro">Set the crops you plan for the next three years. Each choice is checked against ten years of weather at your field.</p>
+      <div class="plan-strip" id="my-plan-strip"></div>
+      <div id="my-plan"></div>
+      <fieldset class="q"><legend data-t="plan.priorities">What matters most to you?</legend><div class="chips" id="q-prio"></div></fieldset>
+      <details class="others"><summary data-t="plan.others">Other sequences that score well here</summary><div id="other-plans"></div></details>
+    </section>
+
+    <!-- SOURCE -->
+    <section class="card source" aria-labelledby="src-h">
+      <h2 id="src-h" data-t="source.title">Where does this come from?</h2>
+      <p id="source-text"></p>
+      <div class="actions">
+        <a class="btn secondary" href="/data" data-t="source.data">See all the data and charts</a>
+        <button class="btn secondary" id="print-btn" type="button" data-t="app.print">Print or save this page</button>
       </div>
-      <div id="plans" aria-live="polite"></div>
-    </div>
-  </section>
-
-  <!-- 07 SEASONS + PROVENANCE -->
-  <section class="section" id="seasons" aria-labelledby="seasons-h">
-    <div class="section-head"><span class="num">07</span><h2 id="seasons-h">Season log</h2>
-      <p>Each complete past season at this location (frost-free window, 2 m air temperature).</p></div>
-    <div class="panel"><div class="data-table-wrap" id="season-table"><div class="empty-state">Awaiting analysis.</div></div></div>
-  </section>
-
-  <section class="section" id="provenance" aria-labelledby="prov-h">
-    <div class="section-head"><span class="num">08</span><h2 id="prov-h">Data provenance</h2>
-      <p>Where every number comes from, and how it was computed.</p></div>
-    <div class="prov" id="prov"><div class="empty-state">Awaiting analysis.</div></div>
-  </section>
+    </section>
+  </div>
 </main>
 
-<footer>
-  <span>Rotation Lab · NASA Space Apps Challenge 2026 · <a href="https://www.spaceappschallenge.org/2026/challenges/field-shift-adapting-farms-with-nasa-data/">Field Shift: Adapting Farms with NASA Data</a></span>
-  <span>Data: <a href="https://power.larc.nasa.gov/">NASA POWER</a> · <a href="https://www.earthdata.nasa.gov/eosdis/science-system-description/eosdis-components/gibs">NASA GIBS</a> · <a href="/docs">API docs</a></span>
-  <span>Decision support only. Validate locally with an agronomist.</span>
-</footer>
+<footer>Rotation Lab · NASA Space Apps 2026 · Data: NASA POWER &amp; NASA GIBS</footer>
 </body>
 </html>

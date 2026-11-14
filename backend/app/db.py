@@ -24,7 +24,14 @@ CREATE TABLE IF NOT EXISTS fields (
     irrigation TEXT NOT NULL DEFAULT 'Unknown',
     previous_crop TEXT NOT NULL DEFAULT 'Barley',
     notes TEXT NOT NULL DEFAULT '',
+    demo INTEGER NOT NULL DEFAULT 0,
+    boundary TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS hls_cache (
+    key TEXT PRIMARY KEY,
+    fetched_at REAL NOT NULL,
+    payload TEXT NOT NULL
 );
 """
 
@@ -33,11 +40,20 @@ def init_db() -> None:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     with connect() as con:
         con.executescript(SCHEMA)
+        cols = {r[1] for r in con.execute("PRAGMA table_info(fields)")}
+        if "demo" not in cols:  # migrate databases created before the demo flag existed
+            con.execute("ALTER TABLE fields ADD COLUMN demo INTEGER NOT NULL DEFAULT 0")
+            con.execute("UPDATE fields SET demo = 1 WHERE notes LIKE 'Demo field%'")
+        if "boundary" not in cols:  # migrate: optional GeoJSON field outline
+            con.execute("ALTER TABLE fields ADD COLUMN boundary TEXT")
         if con.execute("SELECT COUNT(*) FROM fields").fetchone()[0] == 0:
+            # Illustrative demo field: the location is the Stjørdal demo point; soil, drainage,
+            # irrigation and previous crop are made-up example values, not a real farm's records.
             con.execute(
-                "INSERT INTO fields(name, lat, lon, soil, drainage, irrigation, previous_crop, notes) "
-                "VALUES (?,?,?,?,?,?,?,?)",
-                ("Stjørdal 01", 63.46, 10.92, "Loamy", "Moderate", "No", "Barley", "Demo field, Trøndelag, Norway"),
+                "INSERT INTO fields(name, lat, lon, soil, drainage, irrigation, previous_crop, notes, demo) "
+                "VALUES (?,?,?,?,?,?,?,?,1)",
+                ("Stjørdal 01", 63.46, 10.92, "Loamy", "Moderate", "No", "Barley",
+                 "Demo field, Trøndelag, Norway. Illustrative inputs, not a real farm."),
             )
 
 

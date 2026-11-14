@@ -118,3 +118,44 @@ export function tableFor(tab, d) {
   return { head: ['Month', 'Tmean °C', 'Anomaly °C', 'Rain mm', 'Normal mm', 'Rain vs normal'],
     rows: d.monthly.map(x => [x.month + (x.complete ? '' : ' (partial)'), v(x.tmean), v(x.t_anomaly), v(x.rain), v(x.rain_normal), v(x.rain_anomaly_pct, '%')]).reverse() };
 }
+
+// ---------------------------------------------------------------- NASA HLS satellite record
+// Seasons oldest → newest; order validated for adjacent-pair separation on the dark panel.
+const SEASON_COLOURS = ['#2fa477', '#9d5bdb', '#c8801f', '#2e98c4', '#c2547d'];
+
+export function growWindow(season, lat) {
+  const D = (y, m, d) => Date.UTC(y, m, d);
+  if (lat >= 23.5) return [D(season, 3, 1), D(season, 9, 31)];
+  if (lat >= 0) return [D(season, 0, 1), D(season, 11, 31)];
+  if (lat > -23.5) return [D(season - 1, 6, 1), D(season, 5, 30)];
+  return [D(season - 1, 9, 1), D(season, 3, 30)];
+}
+
+export function renderVegCharts(veg) {
+  const c = C(), lat = veg.centroid.lat;
+  const seasons = veg.seasons.filter((s) => s.clear_images > 0).slice(-5);
+  const colour = Object.fromEntries(seasons.map((s, i) => [s.season, SEASON_COLOURS[i + (5 - seasons.length)]]));
+  const ref = growWindow(seasons[seasons.length - 1]?.season ?? new Date().getUTCFullYear(), lat)[0];
+  const sets = (key) => seasons.map((s) => {
+    const [a, b] = growWindow(s.season, lat);
+    const data = veg.observations.filter((o) => o[key] != null).map((o) => [Date.parse(o.date + 'T00:00:00Z'), o])
+      .filter(([d]) => d >= a && d <= b).map(([d, o]) => ({ x: (d - a) / 864e5, y: o[key], date: o.date, sensor: o.sensor, clear: o.clear_pct }));
+    return { label: s.label, data, borderColor: colour[s.season], backgroundColor: colour[s.season], pointRadius: 2.5, pointHoverRadius: 6, borderWidth: 2, tension: 0.2 };
+  });
+  const span = (growWindow(seasons[seasons.length - 1]?.season ?? 2000, lat)[1] - ref) / 864e5;
+  const opts = (yTitle, yMin, yMax) => {
+    const o = base(c, { yTitle, yMin, yMax });
+    o.interaction = { mode: 'nearest', intersect: false };
+    const monthStarts = [];
+    for (let m = new Date(ref); (m.getTime() - ref) / 864e5 <= span; m.setUTCMonth(m.getUTCMonth() + 1)) monthStarts.push((m.getTime() - ref) / 864e5);
+    o.scales.x = { type: 'linear', min: 0, max: span, grid: { color: c.grid }, border: { color: c.grid },
+      afterBuildTicks: (axis) => { axis.ticks = monthStarts.map((value) => ({ value })); },
+      ticks: { color: c.muted, font: { family: 'JetBrains Mono', size: 10 },
+        callback: (v) => new Date(ref + v * 864e5).toLocaleDateString(undefined, { month: 'short', timeZone: 'UTC' }) } };
+    o.plugins.tooltip.callbacks = { title: (items) => items[0].raw.date, label: (ctx) => ` ${ctx.dataset.label} · ${ctx.parsed.y.toFixed(3)} · ${ctx.raw.sensor} · ${Math.round(ctx.raw.clear * 100)}% clear` };
+    return o;
+  };
+  draw('c-ndvi', { type: 'line', data: { datasets: sets('ndvi') }, options: opts('NDVI', -0.1, 1) });
+  draw('c-ndmi', { type: 'line', data: { datasets: sets('ndmi') }, options: opts('NDMI', -0.4, 0.8) });
+  return seasons.map((s) => ({ label: s.label, colour: colour[s.season] }));
+}

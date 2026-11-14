@@ -8,13 +8,15 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
-from . import agro, crops, power
+import json
+
+from . import agro, crops, hls, power
 from .advisor import build_advisories
 from .db import connect, init_db
 
@@ -26,6 +28,16 @@ app = FastAPI(title="Rotation Lab", version="1.0.0",
 Soil = Literal["Unknown", "Loamy", "Sandy", "Clayey", "Silty", "Peat"]
 Drainage = Literal["Unknown", "Good", "Moderate", "Poor"]
 Irrigation = Literal["Unknown", "No", "Yes"]
+
+
+@app.middleware("http")
+async def revalidate_static(request: Request, call_next):
+    # Make browsers re-check JS/CSS on every load (cheap 304 when unchanged), so an update
+    # never leaves an old module cached next to a new one.
+    response = await call_next(request)
+    if request.url.path.endswith((".js", ".css", ".html")) or request.url.path in ("/", "/data"):
+        response.headers["Cache-Control"] = "no-cache"
+    return response
 
 
 @app.on_event("startup")
@@ -43,6 +55,26 @@ class FieldIn(BaseModel):
     irrigation: Irrigation = "Unknown"
     previous_crop: str = "Barley"
     notes: str = Field(default="", max_length=500)
+    boundary: dict | None = None  # GeoJSON Polygon of the field outline (optional)
+
+    @field_validator("boundary")
+    @classmethod
+    def _check_boundary(cls, v):
+        if v is not None and (problem := hls.validate_boundary(v)):
+            raise ValueError(problem)
+        return v
+
+
+class VegetationRequest(BaseModel):
+    boundary: dict
+    seasons: int = Field(default=5, ge=1, le=8)
+
+    @field_validator("boundary")
+    @classmethod
+    def _check_boundary(cls, v):
+        if problem := hls.validate_boundary(v):
+            raise ValueError(problem)
+        return v
 
 
 class Plan(BaseModel):
@@ -216,6 +248,15 @@ async def rank(req: RankRequest):
             "rankings": crops.rank_rotations(profile, req.priorities, [p.model_dump() for p in req.plans], suit)}
 
 
+@app.post("/api/vegetation")
+async def vegetation(req: VegetationRequest):
+    """NDVI / NDMI record for a field outline from NASA HLS (30 m), clouds masked, by season."""
+    try:
+        return await run_in_threadpool(hls.field_record, req.boundary, req.seasons)
+    except hls.HLSUnavailable as exc:
+        raise HTTPException(503, str(exc))
+
+
 @app.get("/api/export.csv")
 async def export_csv(lat: float = Query(ge=-60, le=75), lon: float = Query(ge=-180, le=180)):
     c, _ = await _climate(lat, lon)
@@ -234,30 +275,38 @@ async def export_csv(lat: float = Query(ge=-60, le=75), lon: float = Query(ge=-1
 
 
 # ---- saved fields
+def _field_row(r) -> dict:
+    d = dict(r)
+    d["boundary"] = json.loads(d["boundary"]) if d.get("boundary") else None
+    return d
+
+
 @app.get("/api/fields")
 def list_fields():
     with connect() as con:
-        return [dict(r) for r in con.execute("SELECT * FROM fields ORDER BY id")]
+        return [_field_row(r) for r in con.execute("SELECT * FROM fields ORDER BY id")]
 
 
 @app.post("/api/fields", status_code=201)
 def create_field(f: FieldIn):
     with connect() as con:
         cur = con.execute(
-            "INSERT INTO fields(name, lat, lon, soil, drainage, irrigation, previous_crop, notes) VALUES (?,?,?,?,?,?,?,?)",
-            (f.name, f.lat, f.lon, f.soil, f.drainage, f.irrigation, f.previous_crop, f.notes))
-        return dict(con.execute("SELECT * FROM fields WHERE id = ?", (cur.lastrowid,)).fetchone())
+            "INSERT INTO fields(name, lat, lon, soil, drainage, irrigation, previous_crop, notes, boundary) VALUES (?,?,?,?,?,?,?,?,?)",
+            (f.name, f.lat, f.lon, f.soil, f.drainage, f.irrigation, f.previous_crop, f.notes,
+             json.dumps(f.boundary) if f.boundary else None))
+        return _field_row(con.execute("SELECT * FROM fields WHERE id = ?", (cur.lastrowid,)).fetchone())
 
 
 @app.put("/api/fields/{field_id}")
 def update_field(field_id: int, f: FieldIn):
     with connect() as con:
         cur = con.execute(
-            "UPDATE fields SET name=?, lat=?, lon=?, soil=?, drainage=?, irrigation=?, previous_crop=?, notes=? WHERE id=?",
-            (f.name, f.lat, f.lon, f.soil, f.drainage, f.irrigation, f.previous_crop, f.notes, field_id))
+            "UPDATE fields SET name=?, lat=?, lon=?, soil=?, drainage=?, irrigation=?, previous_crop=?, notes=?, boundary=?, demo=0 WHERE id=?",
+            (f.name, f.lat, f.lon, f.soil, f.drainage, f.irrigation, f.previous_crop, f.notes,
+             json.dumps(f.boundary) if f.boundary else None, field_id))
         if not cur.rowcount:
             raise HTTPException(404, "Field not found")
-        return dict(con.execute("SELECT * FROM fields WHERE id = ?", (field_id,)).fetchone())
+        return _field_row(con.execute("SELECT * FROM fields WHERE id = ?", (field_id,)).fetchone())
 
 
 @app.delete("/api/fields/{field_id}", status_code=204)
@@ -269,8 +318,22 @@ def delete_field(field_id: int):
 
 # ------------------------------------------------------------------ frontend
 @app.get("/", include_in_schema=False)
-def index():
+def field_view():
+    """Field view: plain-language overview of one field."""
     return FileResponse(FRONTEND / "index.html")
+
+
+@app.get("/data", include_in_schema=False)
+def data_view():
+    """Data view: full analysis, charts and provenance."""
+    return FileResponse(FRONTEND / "data.html")
+
+
+@app.get("/specialist", include_in_schema=False)
+@app.get("/farmer", include_in_schema=False)
+def old_view_links(request: Request):
+    # Earlier URLs, kept so shared links keep working.
+    return RedirectResponse("/data" if request.url.path == "/specialist" else "/", status_code=301)
 
 
 app.mount("/", StaticFiles(directory=FRONTEND), name="frontend")

@@ -99,6 +99,8 @@ async def _get_json(url: str, params: dict) -> dict:
                 last_error = PowerUnavailable(f"NASA POWER HTTP {r.status_code}: {r.text[:200]}")
                 if r.status_code < 500 and r.status_code != 429:
                     break
+            except httpx.ConnectError as exc:
+                raise PowerUnavailable(f"No connection to NASA POWER: {exc}") from exc  # offline: fail fast, use cache
             except httpx.HTTPError as exc:
                 last_error = exc
             await _sleep(1.5 * (attempt + 1))

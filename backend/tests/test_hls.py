@@ -79,3 +79,18 @@ def test_crop_hint_honest_when_unsure():
     assert hls.crop_hint(curve(SPRING), -0.3)["type"] == "unavailable"   # tropics
     south = [("2025-" + d[5:].replace("04-", "10-").replace("05-", "11-").replace("06-", "12-"), v) for d, v in SPRING[:4]]
     assert hls.crop_hint(curve(south + [("2026-01-10", .9), ("2026-02-20", .4), ("2026-03-20", .3), ("2026-04-10", .3)]), -34)["type"] == "spring_crop"
+
+
+def test_demo_field_works_offline_from_snapshots(monkeypatch):
+    """A fresh install with no internet still shows the demo field's weather and satellite record."""
+    from app import power
+    from app.db import DEMO_FIELD
+    monkeypatch.setattr(power, "DAILY_URL", "https://power.invalid/api")
+    monkeypatch.setattr(power, "CLIMATOLOGY_URL", "https://power.invalid/api")
+    monkeypatch.setattr(hls, "STAC_SEARCH", "https://stac.invalid/search")
+    with TestClient(app) as cl:
+        a = cl.get("/api/analysis", params={"lat": DEMO_FIELD["lat"], "lon": DEMO_FIELD["lon"]})
+        assert a.status_code == 200 and a.json()["provenance"]["delivery"] in ("snapshot", "stale-cache", "cache")
+        v = cl.post("/api/vegetation", json={"boundary": DEMO_FIELD["boundary"]})
+        assert v.status_code == 200 and v.json()["delivery"] in ("snapshot", "offline-cache")
+        assert v.json()["stats"]["clear_images"] > 50

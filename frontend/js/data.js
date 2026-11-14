@@ -305,6 +305,37 @@ function finishBoundary() {
 const HINT_LABEL = { grass: 'Grass / ley', winter_crop: 'Autumn-sown', spring_crop: 'Spring-sown', late_crop: 'Late crop',
   bare: 'Bare / failed', unclear: 'Unclear', unknown: 'Too cloudy', unavailable: 'n/a (tropics)' };
 
+const ZONE_COLOUR = { weaker: '#c8801f', average: '#6b7684', stronger: '#2fa477' };
+let zonesMap;
+async function renderZones(boundary, key) {
+  try {
+    const z = await api.zones(boundary);
+    if (state.vegFor !== key) return;
+    const info = $('zones-info');
+    if (z.status !== 'ok') { info.innerHTML = `<p class="chart-note">${esc(z.message)}</p>`; $('zones-map').hidden = true; return; }
+    if (zonesMap) zonesMap.remove();
+    zonesMap = L.map('zones-map', { zoomControl: false, attributionControl: false, scrollWheelZoom: false });
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 }).addTo(zonesMap);
+    const layer = L.geoJSON(z.cells, { style: (ft) => ft.properties.zone === 'edge'
+      ? { color: '#A3AEBD', weight: 1, dashArray: '3 3', fillOpacity: 0 }
+      : { color: '#0E141B', weight: 0.5, fillColor: ZONE_COLOUR[ft.properties.zone], fillOpacity: 0.78 },
+      onEachFeature: (ft, l) => l.bindTooltip(ft.properties.zone === 'edge' ? 'Edge pixel: mixed with neighbouring land, not classified'
+        : `${ft.properties.zone} · ${(ft.properties.relative * 100).toFixed(0)}% of field median · same side in ${Math.round(ft.properties.consistency * 100)}% of ${ft.properties.seasons} seasons`) });
+    zonesMap.fitBounds(layer.getBounds(), { padding: [10, 10] }); // set the view before adding vector layers
+    layer.addTo(zonesMap);
+    L.polygon(boundary.coordinates[0].map(([x, y]) => [y, x]), { color: '#4FD29A', weight: 2.5, fill: false, interactive: false }).addTo(zonesMap);
+    const pct = (v) => `${Math.round(v * 100)}%`;
+    info.innerHTML = `<div class="zone-legend">${['weaker', 'average', 'stronger'].map((k) => `<div><i style="background:${ZONE_COLOUR[k]}"></i><b>${k[0].toUpperCase() + k.slice(1)}</b><span class="mono">${pct(z.share[k])}</span></div>`).join('')}
+        <div><i class="edge"></i><b>Edge</b><span class="mono">not classified</span></div></div>
+      <dl class="zone-stats"><dt>Interior pixels</dt><dd>${z.interior_pixels} pixels, 30 m each</dd><dt>Variability (CV)</dt><dd>${(z.cv * 100).toFixed(1)}%${z.uniform ? ' · uniform field' : ''}</dd>
+        <dt>Seasons</dt><dd>${z.seasons_used.map((s) => `${s.season} (${s.images})`).join(', ')}</dd><dt>Thresholds</dt><dd>&lt; ${z.thresholds.weaker_below} · &gt; ${z.thresholds.stronger_above} of field median</dd>
+        <dt>Delivery</dt><dd>${esc(z.delivery)}</dd></dl>
+      <p class="chart-note">${esc(z.method)}</p>`;
+  } catch (e) {
+    if (state.vegFor === key) $('zones-info').innerHTML = `<p class="chart-note">Zones unavailable: ${esc(e.message)}</p>`;
+  }
+}
+
 async function renderSatellite(f, d) {
   const panel = $('sat-panel');
   if (!f.boundary) { panel.innerHTML = '<div class="empty-state">Draw a field boundary on the map, then press Analyze field.</div>'; return; }
@@ -334,12 +365,15 @@ async function renderSatellite(f, d) {
           <td class="num">${n(s.peak_ndvi)}</td><td class="num">${n(s.mean_ndvi)}</td><td class="num">${n(s.peak_ndmi)}</td>
           <td class="num">${w ? w.season_rain_mm + ' mm' : '—'}</td><td class="num">${w ? w.season_et0_mm + ' mm' : '—'}</td><td class="num">${w ? w.longest_dry_spell + ' d' : '—'}</td><td class="num">${w ? w.heat_days : '—'}</td></tr>`; }).join('')}
       </tbody></table></div>
+      <div class="zones-block"><div class="chart-title"><h3>Productivity zones (multi-season EVI)</h3></div>
+        <div class="zones-grid"><div id="zones-map" class="zones-map"></div><div id="zones-info"><div class="mission-status busy"><span class="scanner"></span><span>Computing zones from every 30 m pixel…</span></div></div></div></div>
       <p class="chart-note">Crop-type hints are rule-based on the curve shape (hover a hint for its evidence): ${esc(veg.method.crop_hint)}</p>
       <p class="chart-note">Weather columns come from NASA POWER for the same season (frost-free window); “—” where the season is not complete in the weather record.</p>
       <details><summary class="label" style="cursor:pointer">All ${veg.observations.length} image readings</summary><div class="data-table-wrap"><table><thead><tr><th>Date</th><th>Sensor</th><th class="num">Field clear</th><th class="num">Tile cloud</th><th class="num">NDVI</th><th class="num">NDMI</th></tr></thead><tbody>
         ${veg.observations.slice().reverse().map((o) => `<tr><td>${o.date}</td><td>${o.sensor}</td><td class="num">${Math.round(o.clear_pct * 100)}%</td><td class="num">${o.scene_cloud ?? '—'}%</td><td class="num">${n(o.ndvi)}</td><td class="num">${n(o.ndmi)}</td></tr>`).join('')}
       </tbody></table></div></details>
       <p class="chart-note">${esc(veg.attribution)} · ${esc(veg.method.cloud_mask)} · NDVI ${esc(veg.method.ndvi)} · NDMI ${esc(veg.method.ndmi)} · bands: Sentinel-2 ${Object.values(veg.method.bands['Sentinel-2']).join('/')}, Landsat ${Object.values(veg.method.bands.Landsat).join('/')}.</p>`;
+    renderZones(f.boundary, key);
     const key2 = renderVegCharts(veg);
     $('season-key').innerHTML = key2.map((k) => `<span><i style="background:${k.colour}"></i>${esc(k.label)}</span>`).join('');
   } catch (e) {

@@ -36,8 +36,8 @@ SNAPSHOT_DIR = Path(__file__).resolve().parents[2] / "data" / "snapshots"
 STAC_SEARCH = "https://planetarycomputer.microsoft.com/api/stac/v1/search"
 SAS_TOKEN = "https://planetarycomputer.microsoft.com/api/sas/v1/token/{collection}"
 COLLECTIONS = {
-    "hls2-s30": {"sensor": "Sentinel-2", "red": "B04", "nir": "B8A", "swir": "B11"},
-    "hls2-l30": {"sensor": "Landsat", "red": "B04", "nir": "B05", "swir": "B06"},
+    "hls2-s30": {"sensor": "Sentinel-2", "blue": "B02", "red": "B04", "nir": "B8A", "swir": "B11"},
+    "hls2-l30": {"sensor": "Landsat", "blue": "B02", "red": "B04", "nir": "B05", "swir": "B06"},
 }
 ATTRIBUTION = "NASA HLS v2.0 (LP DAAC), accessed via Microsoft Planetary Computer"
 SCENE_CLOUD_MAX = 80      # skip images whose whole-tile cloud cover is above this
@@ -210,6 +210,178 @@ def read_item(item: dict, geom: dict, token: str) -> dict:
     return obs
 
 
+# ---------------------------------------------------------------- per-pixel reading (productivity zones)
+def read_item_pixels(item: dict, geom: dict, token: str) -> dict:
+    """EVI per clear pixel inside the field, on the image's native 30 m MGRS grid."""
+    spec = COLLECTIONS[item["collection"]]
+    href = lambda band: f"{item['assets'][band]['href']}?{token}"  # noqa: E731
+    out = {"id": item["id"], "date": item["properties"]["datetime"][:10], "tile": item["id"].split(".")[2], "evi": None}
+    with rasterio.Env(**GDAL_ENV):
+        with rasterio.open(href("Fmask")) as src:
+            shape = transform_geom("EPSG:4326", src.crs, geom)
+            xs = [p[0] for p in shape["coordinates"][0]]
+            ys = [p[1] for p in shape["coordinates"][0]]
+            win = from_bounds(min(xs) - 30, min(ys) - 30, max(xs) + 30, max(ys) + 30, src.transform)
+            win = win.round_offsets().round_lengths()
+            fmask = src.read(1, window=win, boundless=True, fill_value=255)
+            transform = src.window_transform(win)
+            out.update(crs=str(src.crs), transform=[round(v, 4) for v in list(transform)[:6]], shape=list(fmask.shape))
+            inside = geometry_mask([shape], out_shape=fmask.shape, transform=transform, invert=True)
+        clear = inside & _clear(fmask)
+        if clear.sum() < 3:
+            return out
+        bands = {}
+        for key in ("blue", "red", "nir"):
+            with rasterio.open(href(spec[key])) as src:
+                bands[key] = src.read(1, window=win, boundless=True, fill_value=FILL).astype("float32")
+    valid = clear & (bands["blue"] != FILL) & (bands["red"] != FILL) & (bands["nir"] != FILL)
+    b, r, n = (bands[k] * SCALE for k in ("blue", "red", "nir"))
+    with np.errstate(divide="ignore", invalid="ignore"):
+        evi = 2.5 * (n - r) / (n + 6 * r - 7.5 * b + 1)
+    evi = np.where(valid & (evi > -1) & (evi < 1.5), evi, np.nan)
+    out["evi"] = [[None if np.isnan(v) else round(float(v), 3) for v in row] for row in evi]
+    return out
+
+
+import warnings  # noqa: E402
+warnings.filterwarnings("ignore", message="All-NaN slice encountered", category=RuntimeWarning)
+
+ZONE_LOW, ZONE_HIGH = 0.95, 1.05   # relative to the field median of the same season
+MIN_INTERIOR = 8                   # whole pixels away from the edge needed to map zones
+MAX_ZONE_PIXELS = 3000             # ≈ 270 ha at 30 m
+
+
+def compute_zones(px_obs: list[dict], geom: dict, lat: float) -> dict:
+    """Per pixel: peak EVI each season relative to the field median, averaged over seasons."""
+    from rasterio.transform import Affine
+    from rasterio.warp import transform as warp
+
+    good = [o for o in px_obs if o.get("evi") is not None]
+    if not good:
+        return {"status": "no_data", "message": "No clear satellite images of this field."}
+    groups: dict[tuple, list[dict]] = {}
+    for o in good:  # Landsat and Sentinel-2 HLS share the MGRS 30 m grid; keep one tile's grid
+        groups.setdefault((o["tile"], tuple(o["transform"]), tuple(o["shape"])), []).append(o)
+    (tile, tf, shp), obs = max(groups.items(), key=lambda kv: len(kv[1]))
+    h, w = shp
+    if h * w > MAX_ZONE_PIXELS * 2:
+        return {"status": "too_large", "message": "Field too large for zone mapping in this demo (about 270 ha maximum)."}
+    transform = Affine(*tf)
+    crs = obs[0]["crs"]
+    shape = transform_geom("EPSG:4326", crs, geom)
+    inside = geometry_mask([shape], out_shape=(h, w), transform=transform, invert=True)
+    # Edge pixels overlap hedges, roads and neighbouring fields; they are shown but never classified.
+    padded = np.pad(inside, 1, constant_values=False)
+    edge = inside & ~(padded[:-2, 1:-1] & padded[2:, 1:-1] & padded[1:-1, :-2] & padded[1:-1, 2:])
+    interior = inside & ~edge
+    if interior.sum() < MIN_INTERIOR:
+        return {"status": "too_small", "message": f"Only {int(interior.sum())} whole 30 m pixels lie inside the field, away from its edges; "
+                                                  f"at least {MIN_INTERIOR} are needed to map zones."}
+    by_season: dict[int, list[np.ndarray]] = {}
+    for o in obs:
+        y, _ = season_of(date.fromisoformat(o["date"]), lat)
+        by_season.setdefault(y, []).append(np.array(o["evi"], dtype="float32"))
+    rel_layers, used = [], []
+    for y, arrs in sorted(by_season.items()):
+        stack = np.stack(arrs)
+        count = np.sum(~np.isnan(stack), axis=0)
+        with np.errstate(all="ignore"):
+            peak = np.where(count >= 3, np.nanpercentile(stack, 90, axis=0), np.nan)
+        cover = np.sum(~np.isnan(peak[interior])) / max(1, interior.sum())
+        if cover < 0.5:
+            continue  # too cloudy this season to map the field
+        median = np.nanmedian(peak[interior])
+        rel_layers.append(peak / median)
+        used.append({"season": y, "images": len(arrs), "field_median_peak_evi": round(float(median), 3)})
+    if len(rel_layers) < 2:
+        return {"status": "too_few_seasons", "message": "Fewer than two seasons with enough clear images to map zones."}
+    rel = np.stack(rel_layers)
+    import warnings
+    with np.errstate(all="ignore"), warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)
+        mean_rel = np.nanmean(rel, axis=0)
+        n_seasons = np.sum(~np.isnan(rel), axis=0)
+        side = np.sign(rel - 1)
+        mean_side = np.sign(mean_rel - 1)
+        consistency = np.nansum(side == mean_side, axis=0) / np.maximum(1, n_seasons)
+    zone = np.full((h, w), "", dtype=object)
+    zone[mean_rel < ZONE_LOW] = "weaker"
+    zone[(mean_rel >= ZONE_LOW) & (mean_rel <= ZONE_HIGH)] = "average"
+    zone[mean_rel > ZONE_HIGH] = "stronger"
+    zone[edge] = "edge"
+    cells, counts = [], {"weaker": 0, "average": 0, "stronger": 0}
+    rows, cols = np.where(inside & ~np.isnan(mean_rel) & (n_seasons >= 2))
+    for r_, c_ in zip(rows, cols):
+        xs, ys = [], []
+        for dc, dr in ((0, 0), (1, 0), (1, 1), (0, 1), (0, 0)):
+            col, row = c_ + dc, r_ + dr
+            x, y = transform.c + transform.a * col + transform.b * row, transform.f + transform.d * col + transform.e * row
+            xs.append(x); ys.append(y)
+        lons, lats = warp(crs, "EPSG:4326", xs, ys)
+        z = zone[r_, c_]
+        if z in counts:
+            counts[z] += 1
+        cells.append({"type": "Feature", "geometry": {"type": "Polygon", "coordinates": [[[round(a, 6), round(b, 6)] for a, b in zip(lons, lats)]]},
+                      "properties": {"zone": z, "relative": round(float(mean_rel[r_, c_]), 3),
+                                     "consistency": round(float(consistency[r_, c_]), 2), "seasons": int(n_seasons[r_, c_]),
+                                     "edge": bool(edge[r_, c_])}})
+    total = sum(counts.values())
+    vals = mean_rel[interior & ~np.isnan(mean_rel)]
+    cv = float(np.std(vals) / np.mean(vals)) if vals.size else 0.0
+    share = {k: round(v / total, 3) for k, v in counts.items()} if total else counts
+    uniform = (share.get("weaker", 0) + share.get("stronger", 0)) < 0.10
+    return {"status": "ok", "tile": tile, "pixels": total, "interior_pixels": total, "pixel_size_m": 30, "seasons_used": used,
+            "share": share, "cv": round(cv, 3), "uniform": uniform, "edge_pixels": int(edge[rows, cols].sum()),
+            "thresholds": {"weaker_below": ZONE_LOW, "stronger_above": ZONE_HIGH},
+            "cells": {"type": "FeatureCollection", "features": cells},
+            "method": "Per season: 90th-percentile EVI per 30 m pixel (≥3 clear images), divided by the median of the field's interior pixels that season; "
+                      "averaged over seasons (≥2). Weaker < 0.95, stronger > 1.05 of the field median. Consistency = share of seasons "
+                      "on the same side of the median. Edge pixels overlap neighbouring land and are not classified. "
+                      "Uncalibrated: satellite greenness, not measured yield."}
+
+
+def field_zones(geom: dict, seasons: int = 5, today: date | None = None, workers: int = 12) -> dict:
+    today = today or date.today()
+    lat, _ = centroid(geom)
+    start, end = season_range(lat, seasons, today)
+    bkey = boundary_key(geom)
+    prefix = f"px:{bkey}:"
+    t0 = time.time()
+    try:
+        with httpx.Client(timeout=httpx.Timeout(60.0, connect=10.0)) as client:
+            items = search(geom, start, end, client)
+            tokens = {c: _token(c, client) for c in COLLECTIONS}
+    except (httpx.HTTPError, HLSUnavailable) as exc:
+        with connect() as con:
+            cached = [json.loads(p) for (p,) in con.execute("SELECT payload FROM hls_cache WHERE key LIKE ?", (prefix + "%",))]
+        delivery = "offline-cache"
+        if not cached and _snapshot_path(bkey).exists():
+            cached, delivery = json.loads(_snapshot_path(bkey).read_text()).get("pixels", []), "snapshot"
+        if not cached:
+            raise HLSUnavailable(f"Could not reach the HLS catalogue and no saved copy exists for this outline: {exc}") from exc
+        cached = [o for o in cached if start <= o["date"] <= end and in_growing_months(date.fromisoformat(o["date"]), lat)]
+        return {**compute_zones(cached, geom, lat), "delivery": delivery, "seconds": round(time.time() - t0, 1)}
+    items = [it for it in items if in_growing_months(date.fromisoformat(it["properties"]["datetime"][:10]), lat)]
+    keys = {it["id"]: prefix + it["id"] for it in items}
+    cached = _cache_get(list(keys.values()))
+    todo = [it for it in items if keys[it["id"]] not in cached]
+
+    def work(it):
+        try:
+            return it, read_item_pixels(it, geom, tokens[it["collection"]])
+        except Exception:
+            return it, None
+
+    fresh = []
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        for it, o in pool.map(work, todo):
+            if o is not None:
+                fresh.append((keys[it["id"]], o))
+    _cache_put(fresh)
+    px = list(cached.values()) + [o for _, o in fresh]
+    return {**compute_zones(px, geom, lat), "delivery": "live", "images": len(px), "seconds": round(time.time() - t0, 1)}
+
+
 # ---------------------------------------------------------------- cache
 def _cache_get(keys: list[str]) -> dict[str, dict]:
     if not keys:
@@ -240,7 +412,9 @@ def save_snapshot(geom: dict) -> Path | None:
         return None
     SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)
     path = _snapshot_path(bkey)
-    path.write_text(json.dumps({"saved_at": time.time(), "boundary": geom, "observations": obs}))
+    with connect() as con:
+        pixels = [json.loads(p) for (p,) in con.execute("SELECT payload FROM hls_cache WHERE key LIKE ?", (f"px:{bkey}:%",))]
+    path.write_text(json.dumps({"saved_at": time.time(), "boundary": geom, "observations": obs, "pixels": pixels}))
     return path
 
 

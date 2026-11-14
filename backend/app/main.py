@@ -257,6 +257,15 @@ async def vegetation(req: VegetationRequest):
         raise HTTPException(503, str(exc))
 
 
+@app.post("/api/zones")
+async def zones(req: VegetationRequest):
+    """Within-field productivity zones from multi-season NASA HLS EVI (30 m pixels, edges excluded)."""
+    try:
+        return await run_in_threadpool(hls.field_zones, req.boundary, req.seasons)
+    except hls.HLSUnavailable as exc:
+        raise HTTPException(503, str(exc))
+
+
 @app.get("/api/export.csv")
 async def export_csv(lat: float = Query(ge=-60, le=75), lon: float = Query(ge=-180, le=180)):
     c, _ = await _climate(lat, lon)

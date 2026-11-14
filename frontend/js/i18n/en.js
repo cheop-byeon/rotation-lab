@@ -67,6 +67,14 @@ export default {
     ndviNote: 'Greenness is NDVI: about 0.1–0.3 for bare soil, 0.8–0.9 for a dense green crop.',
     source: 'NASA HLS satellite images (Landsat and Sentinel-2, 30 m pixels), {from} to {to}. Cloudy images are skipped: {clear} of {total} were clear.',
   },
+  zones: {
+    title: 'Stronger and weaker parts of your field',
+    weaker: 'Weaker', average: 'Average', stronger: 'Stronger', edge: 'Edge (mixed with neighbouring land)',
+    summary: 'About {w}% of the field was consistently less green and {s}% greener than the rest, over {n} seasons.',
+    uniform: 'Your field grows evenly: no clear weaker or stronger parts over {n} seasons.',
+    note: 'This is satellite greenness, not measured yield. Weaker spots are worth a look on the ground: drainage, soil depth, compaction.',
+    tooSmall: 'The field is too small to show stronger and weaker parts: satellite pixels are 30 m.',
+  },
   now: {
     title: 'Right now',
     phase: {

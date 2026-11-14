@@ -13,6 +13,7 @@ function t(path, params = {}) {
   return v.replace(/\{(\w+)\}/g, (_, k) => (params[k] ?? `{${k}}`));
 }
 const fmtDate = (iso) => iso ? new Date(iso + 'T00:00:00Z').toLocaleDateString(STR.locale || STR.lang, { day: 'numeric', month: 'long', timeZone: 'UTC' }) : '—';
+const fmtDateY = (iso) => iso ? new Date(iso + 'T00:00:00Z').toLocaleDateString(STR.locale || STR.lang, { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }) : '—';
 const cropName = (n) => STR.crop[n] || n;
 
 const ICON = {
@@ -416,6 +417,24 @@ function spaceInsight(veg) {
   return out;
 }
 
+// What the curve shape suggests, compared with what the grower entered (an observation, not a correction).
+const HINT_FOR_FAMILY = { Forage: 'grass', Solanaceae: 'late_crop', 'Warm cereal': 'late_crop' };
+function hintNotes(veg) {
+  const known = veg.seasons.filter((s) => ['grass', 'winter_crop', 'spring_crop', 'late_crop', 'bare'].includes(s.crop_hint?.type));
+  const out = [];
+  if (known.length >= 3 && known.length === veg.seasons.length && new Set(known.map((s) => s.crop_hint.type)).size === 1) {
+    out.push(t('space.pattern', { n: known.length, type: t(`space.hint.${known[0].crop_hint.type}`).toLowerCase() }));
+  }
+  const last = veg.seasons[veg.seasons.length - 1], f = state.field;
+  const fam = state.catalog.find((c) => c.name === f?.previous_crop)?.family;
+  const expected = fam ? (HINT_FOR_FAMILY[fam] || 'spring_crop') : null;
+  const seen = last?.crop_hint?.type;
+  if (expected && ['grass', 'spring_crop', 'late_crop', 'winter_crop'].includes(seen) && seen !== expected) {
+    out.push(t('space.mismatch', { y: last.label, type: t(`space.hint.${seen}`).toLowerCase(), crop: cropName(f.previous_crop).toLowerCase() }));
+  }
+  return out;
+}
+
 async function renderSpace(f) {
   const box = $('space');
   if (!f.boundary) {
@@ -430,15 +449,16 @@ async function renderSpace(f) {
     const veg = await api.vegetation(f.boundary);
     if (state.vegFor !== key) return; // a newer field was chosen meanwhile
     const rows = veg.seasons.map((s) => `<tr><td><b>${esc(s.label)}</b></td>
+      <td title="${esc(s.crop_hint?.evidence ?? '')}">${esc(t(`space.hint.${s.crop_hint?.type ?? 'unknown'}`))}</td>
       <td>${s.greenup_date ? esc(fmtDate(s.greenup_date)) : s.greenup_cloud_gap ? esc(t('space.cloudGap')) : '—'}</td>
       <td>${s.peak_date ? esc(fmtDate(s.peak_date)) : '—'}</td>
       <td>${s.peak_ndvi != null ? `<span class="pbar"><i style="width:${Math.max(0, s.peak_ndvi) * 100}%"></i></span>${s.peak_ndvi.toFixed(2)}` : '—'}</td>
       <td>${s.clear_images} / ${s.images}</td></tr>`).join('');
     const T = STR.space.table;
     box.innerHTML = `<p class="small muted">${esc(t('outline.set', { ha: veg.area_ha.toFixed(1) }))}</p>${greennessChart(veg)}
-      <ul class="season-facts">${spaceInsight(veg).map((x) => `<li>${esc(x)}</li>`).join('')}</ul>
-      <div class="table-wrap"><table class="simple"><thead><tr><th>${esc(T.year)}</th><th>${esc(T.up)}</th><th>${esc(T.peak)}</th><th>${esc(T.value)}</th><th>${esc(T.clear)}</th></tr></thead><tbody>${rows}</tbody></table></div>
-      <p class="small muted">${esc(t('space.ndviNote'))} ${esc(t('space.source', { from: fmtDate(veg.period.start), to: fmtDate(veg.period.end), clear: veg.stats.clear_images, total: veg.observations.length }))}</p>`;
+      <ul class="season-facts">${[...hintNotes(veg), ...spaceInsight(veg)].map((x) => `<li>${esc(x)}</li>`).join('')}</ul>
+      <div class="table-wrap"><table class="simple"><thead><tr><th>${esc(T.year)}</th><th>${esc(T.likely)}</th><th>${esc(T.up)}</th><th>${esc(T.peak)}</th><th>${esc(T.value)}</th><th>${esc(T.clear)}</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <p class="small muted">${esc(t('space.hintNote'))} ${esc(t('space.ndviNote'))} ${esc(t('space.source', { from: fmtDateY(veg.period.start), to: fmtDateY(veg.period.end), clear: veg.stats.clear_images, total: veg.observations.length }))}</p>`;
   } catch (e) {
     if (state.vegFor === key) box.innerHTML = `<p class="loading error">${esc(t('space.failed', { error: e.message }))}</p>`;
   }
@@ -446,7 +466,7 @@ async function renderSpace(f) {
 
 function renderSource(d) {
   const [from, to] = d.provenance.period.split(' → ');
-  $('source-text').textContent = t('source.text', { from: fmtDate(from), to: fmtDate(to) });
+  $('source-text').textContent = t('source.text', { from: fmtDateY(from), to: fmtDateY(to) });
 }
 
 // ------------------------------------------------------------------ wiring

@@ -189,6 +189,10 @@ The GIBS layers are for visual context. The numerical analysis uses NASA POWER o
   Bands: Sentinel-2 `B04`/`B8A`/`B11`, Landsat `B04`/`B05`/`B06`.
 - **Seasons:** the last five, growing months only (Apr–Oct north, Oct–Apr south, all year in the tropics). Per season: images, clear images, green-up date, peak NDVI and date, mean NDVI, peak NDMI. Green-up is reported as *hidden by cloud* when no clear image exists in the three weeks before it.
 - **Joined with weather:** the data view lines each satellite season up with the NASA POWER weather for the same season (rain, ET₀, longest dry spell, heat days). The field view names the least green season and checks whether that season's weather stands out. If all peaks are within 0.08 NDVI, it says no season stands out.
+- **Crop-type hints:** each season's curve is labelled *grass / ley* (green in late April–May and again in Sep–Oct), *autumn-sown* (green in spring, bare in autumn), *spring-sown* (bare until late May, peak before August), *late crop* (peak in August or later), *bare / failed* (peak NDVI below 0.5), *unclear*, or *too cloudy*.
+  Each hint carries its evidence. The rules are for temperate seasons; southern dates are shifted six months, and the tropics are not covered.
+  The field view calls these "likely" crops and says they are hints, not records. If the latest season's pattern differs from the crop the grower entered, it says so as an observation.
+  On two Stjørdal test fields the hints read *spring-sown ×5* and *spring-sown → unclear → grass ×3* (a cereal followed by a ley). No ground-truth validation has been done yet.
 - **Cross-checks seen in testing (Stjørdal):** Sentinel-2 and Landsat values from the same day agree within about 0.02 NDVI, and emergence in early June matches the weather-based sowing window.
 - **Limits:** cloudy regions have gaps. A 30 m pixel needs fields of at least 0.3 ha, and edge pixels mix with the neighbouring land. NDVI differences between seasons also reflect *which crop* was grown.
 

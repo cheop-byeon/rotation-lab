@@ -225,6 +225,48 @@ def _cache_put(rows: list[tuple[str, dict]]) -> None:
                         [(k, time.time(), json.dumps(v)) for k, v in rows])
 
 
+# ---------------------------------------------------------------- crop-type hints
+# Transparent rules on the shape of the greenness curve, for temperate seasons only.
+# Dates are expressed in "northern" months: southern-hemisphere dates are shifted by six months.
+EARLY = ((4, 15), (5, 25))   # late April – late May: is the field already green?
+LATE = ((9, 10), (10, 31))   # September – October: is it still green after summer?
+GREEN, BARE = 0.5, 0.4
+
+
+def _md(d: date, lat: float) -> tuple[int, int]:
+    if lat < 0:
+        m = (d.month + 5) % 12 + 1  # shift six months so October behaves like April
+        return m, d.day
+    return d.month, d.day
+
+
+def crop_hint(obs: list[dict], lat: float) -> dict:
+    """Classify a season's curve into a broad crop type, with the evidence used."""
+    if abs(lat) < 23.5:
+        return {"type": "unavailable", "evidence": "Crop-type hints are calibrated for temperate seasons only."}
+    good = [o for o in obs if o["ndvi"] is not None]
+    def window(w):
+        return [o["ndvi"] for o in good if w[0] <= _md(date.fromisoformat(o["date"]), lat) <= w[1]]
+    early, late = window(EARLY), window(LATE)
+    if len(good) < 6 or len(early) < 2:
+        return {"type": "unknown", "evidence": f"Too few clear images ({len(good)} in the season, {len(early)} in late April–May)."}
+    e = float(np.median(early))
+    peak = max(good, key=lambda o: o["ndvi"])
+    # Highest autumn value: regrowth after a late cut is still a living perennial crop.
+    l = float(np.max(late)) if len(late) >= 2 else None
+    pm = _md(date.fromisoformat(peak["date"]), lat)
+    ev = f"late April–May NDVI {e:.2f}; peak {peak['ndvi']:.2f} on {peak['date']}" + (f"; highest Sep–Oct NDVI {l:.2f}" if l is not None else "; Sep–Oct too cloudy")
+    if peak["ndvi"] < GREEN:
+        kind = "bare"
+    elif e >= GREEN:
+        kind = "unknown" if l is None else ("grass" if l >= 0.45 else "winter_crop")
+    elif e < BARE:
+        kind = "spring_crop" if pm < (8, 1) else "late_crop"
+    else:
+        kind = "unclear"
+    return {"type": kind, "evidence": ev}
+
+
 # ---------------------------------------------------------------- summary
 def summarise_season(obs: list[dict]) -> dict:
     good = sorted((o for o in obs if o["ndvi"] is not None), key=lambda o: o["date"])
@@ -293,7 +335,7 @@ def field_record(geom: dict, seasons: int = 5, today: date | None = None, worker
     for o in obs:
         y, label = season_of(date.fromisoformat(o["date"]), lat)
         by_season.setdefault(y, {"season": y, "label": label, "obs": []})["obs"].append(o)
-    season_list = [{"season": s["season"], "label": s["label"], **summarise_season(s["obs"])}
+    season_list = [{"season": s["season"], "label": s["label"], **summarise_season(s["obs"]), "crop_hint": crop_hint(s["obs"], lat)}
                    for s in sorted(by_season.values(), key=lambda s: s["season"])]
     return {
         "boundary_key": bkey, "area_ha": round(area_ha(geom), 2), "centroid": {"lat": round(lat, 5), "lon": round(lon, 5)},
@@ -306,6 +348,9 @@ def field_record(geom: dict, seasons: int = 5, today: date | None = None, worker
                    "min_clear_share": MIN_CLEAR, "statistic": "median over clear pixels in the field",
                    "ndvi": "(NIR − Red) / (NIR + Red)", "ndmi": "(NIR − SWIR1) / (NIR + SWIR1)",
                    "bands": {v["sensor"]: {k: v[k] for k in ("red", "nir", "swir")} for v in COLLECTIONS.values()},
-                   "growing_months": "Apr–Oct (north), Oct–Apr (south), all year (tropics)"},
+                   "growing_months": "Apr–Oct (north), Oct–Apr (south), all year (tropics)",
+                   "crop_hint": "Rules on the curve: green in late Apr–May and again in Sep–Oct (highest value) = grass/ley; green in spring, bare in autumn = "
+                                "winter-sown; bare in spring, peak before Aug = spring-sown; peak Aug or later = late crop; "
+                                "peak NDVI < 0.5 = bare/fallow/failed. Temperate only; southern dates shifted six months."},
         "attribution": ATTRIBUTION,
     }

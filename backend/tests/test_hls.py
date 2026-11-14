@@ -57,3 +57,25 @@ def test_fields_api_round_trips_boundary_and_rejects_bad_ones():
         assert cl.post("/api/fields", json=bad).status_code == 422
         assert cl.post("/api/vegetation", json={"boundary": bad["boundary"]}).status_code == 422
         cl.delete(f"/api/fields/{r.json()['id']}")
+
+
+def curve(points):
+    return [{"date": d, "ndvi": v, "ndmi": v - 0.3} for d, v in points]
+
+
+SPRING = [("2025-04-20", .18), ("2025-05-10", .17), ("2025-05-20", .2), ("2025-06-10", .5), ("2025-07-10", .9), ("2025-08-20", .4), ("2025-09-20", .3), ("2025-10-10", .3)]
+GRASS = [("2025-04-20", .55), ("2025-05-15", .75), ("2025-06-10", .85), ("2025-07-01", .5), ("2025-07-25", .8), ("2025-09-20", .6), ("2025-10-10", .55)]
+WINTER = [("2025-04-20", .6), ("2025-05-15", .8), ("2025-06-20", .88), ("2025-08-01", .4), ("2025-09-20", .25), ("2025-10-10", .22)]
+LATE = [("2025-04-20", .15), ("2025-05-15", .18), ("2025-06-20", .3), ("2025-07-20", .6), ("2025-08-15", .85), ("2025-09-20", .5), ("2025-10-10", .3)]
+
+
+@pytest.mark.parametrize("pts,kind", [(SPRING, "spring_crop"), (GRASS, "grass"), (WINTER, "winter_crop"), (LATE, "late_crop")])
+def test_crop_hints(pts, kind):
+    assert hls.crop_hint(curve(pts), 63)["type"] == kind
+
+
+def test_crop_hint_honest_when_unsure():
+    assert hls.crop_hint(curve(SPRING[:3]), 63)["type"] == "unknown"     # too few images
+    assert hls.crop_hint(curve(SPRING), -0.3)["type"] == "unavailable"   # tropics
+    south = [("2025-" + d[5:].replace("04-", "10-").replace("05-", "11-").replace("06-", "12-"), v) for d, v in SPRING[:4]]
+    assert hls.crop_hint(curve(south + [("2026-01-10", .9), ("2026-02-20", .4), ("2026-03-20", .3), ("2026-04-10", .3)]), -34)["type"] == "spring_crop"

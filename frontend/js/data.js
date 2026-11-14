@@ -302,6 +302,9 @@ function finishBoundary() {
   status('Boundary set. Press Analyze field to read its NASA HLS record (first time: up to a minute).');
 }
 
+const HINT_LABEL = { grass: 'Grass / ley', winter_crop: 'Autumn-sown', spring_crop: 'Spring-sown', late_crop: 'Late crop',
+  bare: 'Bare / failed', unclear: 'Unclear', unknown: 'Too cloudy', unavailable: 'n/a (tropics)' };
+
 async function renderSatellite(f, d) {
   const panel = $('sat-panel');
   if (!f.boundary) { panel.innerHTML = '<div class="empty-state">Draw a field boundary on the map, then press Analyze field.</div>'; return; }
@@ -323,13 +326,14 @@ async function renderSatellite(f, d) {
         <div><div class="chart-title"><h3>NDMI (canopy moisture) inside the boundary</h3></div><div class="chart-box tall"><canvas id="c-ndmi" aria-label="NDMI by season"></canvas></div></div>
       </div>
       <p class="chart-note">Each point is one image: the median of clear pixels inside the boundary; images with under ${Math.round(veg.method.min_clear_share * 100)}% of the field clear are dropped. Growing months only (${esc(veg.method.growing_months)}).</p>
-      <div class="data-table-wrap" style="max-height:none"><table><thead><tr><th>Season</th><th class="num">Images</th><th class="num">Clear</th><th>Green-up</th><th>Peak date</th>
+      <div class="data-table-wrap" style="max-height:none"><table><thead><tr><th>Season</th><th>Crop-type hint</th><th class="num">Images</th><th class="num">Clear</th><th>Green-up</th><th>Peak date</th>
         <th class="num">Peak NDVI</th><th class="num">Mean NDVI</th><th class="num">Peak NDMI</th><th class="num">Rain (frost-free)</th><th class="num">ET₀</th><th class="num">Longest dry spell</th><th class="num">Heat days</th></tr></thead><tbody>
-        ${veg.seasons.map((s) => { const w = wx[s.label]; return `<tr><td><b>${esc(s.label)}</b></td><td class="num">${s.images}</td><td class="num">${s.clear_images}</td>
+        ${veg.seasons.map((s) => { const w = wx[s.label]; return `<tr><td><b>${esc(s.label)}</b></td><td title="${esc(s.crop_hint?.evidence ?? '')}">${esc(HINT_LABEL[s.crop_hint?.type] ?? '—')}</td><td class="num">${s.images}</td><td class="num">${s.clear_images}</td>
           <td>${s.greenup_date ? fmtDay(s.greenup_date) : s.greenup_cloud_gap ? '<span class="muted">cloud gap</span>' : '—'}</td><td>${s.peak_date ? fmtDay(s.peak_date) : '—'}</td>
           <td class="num">${n(s.peak_ndvi)}</td><td class="num">${n(s.mean_ndvi)}</td><td class="num">${n(s.peak_ndmi)}</td>
           <td class="num">${w ? w.season_rain_mm + ' mm' : '—'}</td><td class="num">${w ? w.season_et0_mm + ' mm' : '—'}</td><td class="num">${w ? w.longest_dry_spell + ' d' : '—'}</td><td class="num">${w ? w.heat_days : '—'}</td></tr>`; }).join('')}
       </tbody></table></div>
+      <p class="chart-note">Crop-type hints are rule-based on the curve shape (hover a hint for its evidence): ${esc(veg.method.crop_hint)}</p>
       <p class="chart-note">Weather columns come from NASA POWER for the same season (frost-free window); “—” where the season is not complete in the weather record.</p>
       <details><summary class="label" style="cursor:pointer">All ${veg.observations.length} image readings</summary><div class="data-table-wrap"><table><thead><tr><th>Date</th><th>Sensor</th><th class="num">Field clear</th><th class="num">Tile cloud</th><th class="num">NDVI</th><th class="num">NDMI</th></tr></thead><tbody>
         ${veg.observations.slice().reverse().map((o) => `<tr><td>${o.date}</td><td>${o.sensor}</td><td class="num">${Math.round(o.clear_pct * 100)}%</td><td class="num">${o.scene_cloud ?? '—'}%</td><td class="num">${n(o.ndvi)}</td><td class="num">${n(o.ndmi)}</td></tr>`).join('')}

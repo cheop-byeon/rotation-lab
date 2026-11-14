@@ -1,12 +1,23 @@
 """SQLite storage for the NASA POWER cache and saved farm fields."""
 from __future__ import annotations
 
+import json
 import os
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
 
 DB_PATH = Path(os.environ.get("ROTATION_LAB_DB", Path(__file__).resolve().parents[2] / "data" / "rotation_lab.db"))
+
+# Illustrative demo field: a real grass field east of Stjørdal (Trøndelag, Norway), outlined on imagery.
+# Location and outline are real; soil, drainage, irrigation and crop are made-up example values.
+DEMO_FIELD = {
+    "name": "Stjørdal 01", "lat": 63.4695, "lon": 10.9679, "soil": "Loamy", "drainage": "Moderate", "irrigation": "No",
+    "previous_crop": "Grass–clover ley",
+    "notes": "Demo field, Trøndelag, Norway. Real location and outline; illustrative farm details, not a real farm.",
+    "boundary": {"type": "Polygon", "coordinates": [[[10.966523, 63.470528], [10.970857, 63.470241], [10.970213, 63.467998],
+                                                      [10.965836, 63.468956], [10.965965, 63.469551], [10.966523, 63.470528]]]},
+}
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS power_cache (
@@ -46,15 +57,16 @@ def init_db() -> None:
             con.execute("UPDATE fields SET demo = 1 WHERE notes LIKE 'Demo field%'")
         if "boundary" not in cols:  # migrate: optional GeoJSON field outline
             con.execute("ALTER TABLE fields ADD COLUMN boundary TEXT")
+        d = DEMO_FIELD
+        values = (d["name"], d["lat"], d["lon"], d["soil"], d["drainage"], d["irrigation"], d["previous_crop"],
+                  d["notes"], json.dumps(d["boundary"]))
         if con.execute("SELECT COUNT(*) FROM fields").fetchone()[0] == 0:
-            # Illustrative demo field: the location is the Stjørdal demo point; soil, drainage,
-            # irrigation and previous crop are made-up example values, not a real farm's records.
-            con.execute(
-                "INSERT INTO fields(name, lat, lon, soil, drainage, irrigation, previous_crop, notes, demo) "
-                "VALUES (?,?,?,?,?,?,?,?,1)",
-                ("Stjørdal 01", 63.46, 10.92, "Loamy", "Moderate", "No", "Barley",
-                 "Demo field, Trøndelag, Norway. Illustrative inputs, not a real farm."),
-            )
+            con.execute("INSERT INTO fields(name, lat, lon, soil, drainage, irrigation, previous_crop, notes, boundary, demo) "
+                        "VALUES (?,?,?,?,?,?,?,?,?,1)", values)
+        else:
+            # Move an untouched older demo field (the point on Værnes airport) to the outlined grass field.
+            con.execute("UPDATE fields SET name=?, lat=?, lon=?, soil=?, drainage=?, irrigation=?, previous_crop=?, notes=?, boundary=? "
+                        "WHERE demo = 1 AND boundary IS NULL AND lat = 63.46 AND lon = 10.92", values)
 
 
 @contextmanager

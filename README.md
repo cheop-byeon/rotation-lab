@@ -72,9 +72,11 @@ If port 8000 is already in use, pick another port with `PORT=…`.
 
 Switch between the two views with **Field view / Data view** at the top right.
 
-The demo field **Stjørdal 01** (Trøndelag, Norway) loads automatically. Its location is the Stjørdal weather-query point, and its soil, drainage,
-irrigation and previous crop are **illustrative example values, not a real farm's records**. Both views label it as a demo.
-Editing and saving it, or saving your own field, removes the label.
+The demo field **Stjørdal 01** (Trøndelag, Norway) loads automatically: a real grass field east of Stjørdal, with its outline
+drawn on satellite imagery, so its weather, satellite record and crop-type hints appear straight away. Its location and outline are
+real; its soil, drainage, irrigation and crop are **illustrative example values, not a real farm's records**. Both views label it as a demo.
+Editing and saving it, or saving your own field, removes the label. (Databases created before this change have their old demo point,
+which sat on Værnes airport, moved automatically.)
 
 **Field view (`/`)**
 1. Press **Choose my field**, tap the field on the map (or *Use my location*), and tap your soil, drainage, irrigation and this year's crop.
@@ -103,14 +105,24 @@ Advisories reach the field view as a language-neutral `code` plus `params` from 
 
 ### Offline demo
 
-The repository ships a dated copy of the NASA POWER responses for Stjørdal (`data/snapshots/`, retrieved 2026-11-14).
-If NASA POWER cannot be reached and a location has no cache, the API serves the snapshot and the UI says so
-("from the offline snapshot"). Other locations return a clear *503 – NASA POWER is unavailable* error.
+The demo field works **without internet**:
 
-To snapshot more demo locations before a presentation:
+- **Weather:** dated copies of the NASA POWER responses for the demo field (`data/snapshots/daily_*.json`, `clim_*.json`).
+- **Satellite record:** every NASA HLS image reading for the demo outline (`data/snapshots/hls_*.json`).
+- **Libraries:** Leaflet and Chart.js are served from `frontend/vendor/` (copied from cdnjs and checked against its SRI hashes), not a CDN.
+
+When NASA POWER or the HLS catalogue can't be reached, the API serves the local cache, then these snapshots. It says so in the UI
+(*from the offline snapshot*, *Delivery: offline · saved snapshot*). Offline requests return immediately rather than retrying.
+Other locations, and outlines with no saved copy, return a clear *503* message.
+
+**Not available offline:** satellite and street basemap tiles (the map area is blank, but outlines and markers still show), the NASA GIBS
+overlays, and web fonts (system fonts are used instead). Open the demo once while online on the presentation laptop, so the browser can cache the tiles it shows.
+
+To refresh the snapshots before a presentation (or add weather for other points):
 
 ```sh
-.venv/bin/python scripts/snapshot.py 63.46 10.92 -33.89 -60.57   # lat lon pairs
+.venv/bin/python scripts/snapshot.py                          # demo field: weather + satellite record
+.venv/bin/python scripts/snapshot.py 63.46 10.92 -33.89 -60.57  # extra weather points (lat lon pairs)
 ```
 
 ### Local files

@@ -27,7 +27,11 @@ from rasterio.features import geometry_mask
 from rasterio.warp import transform_geom
 from rasterio.windows import from_bounds
 
+from pathlib import Path
+
 from .db import connect
+
+SNAPSHOT_DIR = Path(__file__).resolve().parents[2] / "data" / "snapshots"
 
 STAC_SEARCH = "https://planetarycomputer.microsoft.com/api/stac/v1/search"
 SAS_TOKEN = "https://planetarycomputer.microsoft.com/api/sas/v1/token/{collection}"
@@ -219,6 +223,27 @@ def _cache_get(keys: list[str]) -> dict[str, dict]:
     return out
 
 
+def _cache_for_boundary(bkey: str) -> list[dict]:
+    with connect() as con:
+        return [json.loads(p) for (p,) in con.execute("SELECT payload FROM hls_cache WHERE key LIKE ?", (bkey + ":%",))]
+
+
+def _snapshot_path(bkey: str) -> Path:
+    return SNAPSHOT_DIR / f"hls_{bkey}.json"
+
+
+def save_snapshot(geom: dict) -> Path | None:
+    """Copy every cached image reading for this outline into data/snapshots (for offline demos)."""
+    bkey = boundary_key(geom)
+    obs = _cache_for_boundary(bkey)
+    if not obs:
+        return None
+    SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)
+    path = _snapshot_path(bkey)
+    path.write_text(json.dumps({"saved_at": time.time(), "boundary": geom, "observations": obs}))
+    return path
+
+
 def _cache_put(rows: list[tuple[str, dict]]) -> None:
     with connect() as con:
         con.executemany("INSERT OR REPLACE INTO hls_cache(key, fetched_at, payload) VALUES (?, ?, ?)",
@@ -295,14 +320,24 @@ def field_record(geom: dict, seasons: int = 5, today: date | None = None, worker
     lat, lon = centroid(geom)
     start, end = season_range(lat, seasons, today)
     t0 = time.time()
-    with httpx.Client(timeout=httpx.Timeout(60.0, connect=10.0)) as client:
-        try:
+    bkey = boundary_key(geom)
+    try:
+        with httpx.Client(timeout=httpx.Timeout(60.0, connect=10.0)) as client:
             items = search(geom, start, end, client)
             tokens = {c: _token(c, client) for c in COLLECTIONS}
-        except httpx.HTTPError as exc:
-            raise HLSUnavailable(f"Could not reach the HLS catalogue: {exc}") from exc
+    except (httpx.HTTPError, HLSUnavailable) as exc:
+        # Offline: fall back to readings cached locally, then to a saved snapshot of this outline.
+        offline = _cache_for_boundary(bkey)
+        delivery = "offline-cache"
+        if not offline and _snapshot_path(bkey).exists():
+            offline, delivery = json.loads(_snapshot_path(bkey).read_text())["observations"], "snapshot"
+        if not offline:
+            raise HLSUnavailable(f"Could not reach the HLS catalogue and no saved copy exists for this outline: {exc}") from exc
+        offline = [o for o in offline if start <= o["date"] <= end and in_growing_months(date.fromisoformat(o["date"]), lat)]
+        return _assemble(geom, bkey, lat, lon, start, end, offline, delivery,
+                         {"images_found": len(offline), "images_read_now": 0, "images_from_cache": len(offline),
+                          "images_failed": 0}, t0)
     items = [it for it in items if in_growing_months(date.fromisoformat(it["properties"]["datetime"][:10]), lat)]
-    bkey = boundary_key(geom)
     keys = {it["id"]: f"{bkey}:{it['id']}" for it in items}
     cached = _cache_get(list(keys.values()))
     todo = [it for it in items if keys[it["id"]] not in cached]
@@ -322,6 +357,12 @@ def field_record(geom: dict, seasons: int = 5, today: date | None = None, worker
                 fresh.append((keys[it["id"]], obs))
     _cache_put(fresh)
     all_obs = list(cached.values()) + [o for _, o in fresh]
+    return _assemble(geom, bkey, lat, lon, start, end, all_obs, "live",
+                     {"images_found": len(items), "images_read_now": len(fresh), "images_from_cache": len(cached),
+                      "images_failed": failed}, t0)
+
+
+def _assemble(geom, bkey, lat, lon, start, end, all_obs, delivery, counts, t0) -> dict:
 
     # Same date + sensor from neighbouring tiles: keep the reading with the most clear pixels.
     best: dict[tuple, dict] = {}
@@ -341,9 +382,8 @@ def field_record(geom: dict, seasons: int = 5, today: date | None = None, worker
         "boundary_key": bkey, "area_ha": round(area_ha(geom), 2), "centroid": {"lat": round(lat, 5), "lon": round(lon, 5)},
         "period": {"start": start, "end": end}, "seasons": season_list,
         "observations": [{k: o[k] for k in ("date", "sensor", "ndvi", "ndmi", "clear_pct", "scene_cloud")} for o in obs],
-        "stats": {"images_found": len(items), "images_read_now": len(fresh), "images_from_cache": len(cached),
-                  "images_failed": failed, "clear_images": sum(1 for o in obs if o["ndvi"] is not None),
-                  "seconds": round(time.time() - t0, 1)},
+        "delivery": delivery,
+        "stats": {**counts, "clear_images": sum(1 for o in obs if o["ndvi"] is not None), "seconds": round(time.time() - t0, 1)},
         "method": {"cloud_mask": "HLS Fmask: cloud, adjacent cloud, shadow, snow/ice, water removed",
                    "min_clear_share": MIN_CLEAR, "statistic": "median over clear pixels in the field",
                    "ndvi": "(NIR − Red) / (NIR + Red)", "ndmi": "(NIR − SWIR1) / (NIR + SWIR1)",

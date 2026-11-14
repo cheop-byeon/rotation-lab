@@ -319,7 +319,8 @@ async function renderSatellite(f, d) {
     const st = veg.stats, n = (v, k = 3) => (v == null ? '—' : v.toFixed(k));
     const chip = (k, v) => `<div class="stat-chip"><div class="k"><span>${k}</span></div><div class="v">${v}</div></div>`;
     panel.innerHTML = `<div class="sat-stats">${[chip('Field area', `${veg.area_ha.toFixed(2)} ha`), chip('Images found', st.images_found),
-        chip('Clear field images', st.clear_images), chip('Read now / cached', `${st.images_read_now} / ${st.images_from_cache}`), chip('Time', `${st.seconds} s`)].join('')}</div>
+        chip('Clear field images', st.clear_images), chip('Read now / cached', `${st.images_read_now} / ${st.images_from_cache}`), chip('Time', `${st.seconds} s`),
+        chip('Delivery', { live: 'live', 'offline-cache': 'offline · local cache', snapshot: 'offline · saved snapshot' }[veg.delivery] || veg.delivery)].join('')}</div>
       <div class="season-key" id="season-key"></div>
       <div class="sat-grid">
         <div><div class="chart-title"><h3>NDVI (greenness) inside the boundary</h3></div><div class="chart-box tall"><canvas id="c-ndvi" aria-label="NDVI by season"></canvas></div></div>

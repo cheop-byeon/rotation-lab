@@ -54,6 +54,7 @@ export default {
             bare: 'Bare or failed', unclear: 'Unclear', unknown: 'Too cloudy to tell', unavailable: '—' },
     pattern: 'The greenness pattern looks like the same kind of crop in all {n} seasons: {type}.',
     mismatch: 'The pattern for {y} looks like {type}; your field details say {crop}.',
+    offline: 'Shown from a saved copy, because the satellite catalogue could not be reached.',
     hintNote: 'Likely crops are read from the shape of the greenness curve. You know what you grew: these are hints, not records.',
     cloudGap: 'Hidden by cloud',
     similar: 'Peak greenness was similar every season ({lo}–{hi}): no season stands out.',

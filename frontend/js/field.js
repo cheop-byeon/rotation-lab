@@ -458,6 +458,7 @@ async function renderSpace(f) {
     box.innerHTML = `<p class="small muted">${esc(t('outline.set', { ha: veg.area_ha.toFixed(1) }))}</p>${greennessChart(veg)}
       <ul class="season-facts">${[...hintNotes(veg), ...spaceInsight(veg)].map((x) => `<li>${esc(x)}</li>`).join('')}</ul>
       <div class="table-wrap"><table class="simple"><thead><tr><th>${esc(T.year)}</th><th>${esc(T.likely)}</th><th>${esc(T.up)}</th><th>${esc(T.peak)}</th><th>${esc(T.value)}</th><th>${esc(T.clear)}</th></tr></thead><tbody>${rows}</tbody></table></div>
+      ${veg.delivery !== 'live' ? `<p class="demo-note">${esc(t('space.offline'))}</p>` : ''}
       <p class="small muted">${esc(t('space.hintNote'))} ${esc(t('space.ndviNote'))} ${esc(t('space.source', { from: fmtDateY(veg.period.start), to: fmtDateY(veg.period.end), clear: veg.stats.clear_images, total: veg.observations.length }))}</p>`;
   } catch (e) {
     if (state.vegFor === key) box.innerHTML = `<p class="loading error">${esc(t('space.failed', { error: e.message }))}</p>`;

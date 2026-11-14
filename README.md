@@ -13,6 +13,19 @@ imagery**, and returns:
 - **Rotation planner**: editable multi-year rotations ranked on soil health, water resilience, diversity and yield stability. Water and stability scores come from the field's NASA climate history.
 - **Saved fields**, a **CSV export** of the daily data, and full **data provenance**.
 
+## The problem and how rotation-lab helps
+
+A grower choosing what to plant next has to weigh several seasons at once. A familiar crop may fit the farm's equipment and market, while a different crop family may improve rotation diversity. Rainfall, soil texture, drainage, and irrigation access can change which sequence is practical. That information often lives in separate maps, weather records, and farm notes.
+
+| Problem | How rotation-lab helps |
+| --- | --- |
+| Crop choices affect later seasons. | Edit multi-year sequences (2–6 years) side by side and see where the same crop family repeats, including the transition from the previous crop. |
+| Soil and water priorities can pull in different directions. | Enter soil texture, drainage, and irrigation access, then adjust the priority weights to see which rotation ranks higher under those assumptions. |
+| Weather records are hard to apply to a rotation decision. | Summarize 10 years of daily NASA POWER temperature, rainfall, and soil wetness for any chosen field. Rain versus crop water need drives the water score, and how often each crop reaches maturity drives yield stability. |
+| A ranking alone gives growers little to review. | Open each score breakdown to see the factors behind it. Advisories list their evidence, and the data provenance section shows the exact NASA request, retrieval time, and coverage. Soil inputs still come from the grower until mapped soil sources are attached. |
+
+The platform supports comparing options with a grower or adviser. Its scores reflect explicit rules and user priorities. Field-specific advice requires verified local inputs and agronomic review.
+
 ## How to run
 
 ### Requirements

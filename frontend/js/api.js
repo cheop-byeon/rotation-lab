@@ -19,6 +19,7 @@ export const api = {
   createField: (f) => request('/api/fields', { method: 'POST', body: JSON.stringify(f) }),
   updateField: (id, f) => request(`/api/fields/${id}`, { method: 'PUT', body: JSON.stringify(f) }),
   deleteField: (id) => request(`/api/fields/${id}`, { method: 'DELETE' }),
+  zones: (boundary, seasons = 5) => request('/api/zones', { method: 'POST', body: JSON.stringify({ boundary, seasons }) }),
   vegetation: (boundary, seasons = 5) => request('/api/vegetation', { method: 'POST', body: JSON.stringify({ boundary, seasons }) }),
   exportUrl: (f) => `/api/export.csv?lat=${f.lat}&lon=${f.lon}`,
 };

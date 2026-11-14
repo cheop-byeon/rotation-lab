@@ -455,13 +455,43 @@ async function renderSpace(f) {
       <td>${s.peak_ndvi != null ? `<span class="pbar"><i style="width:${Math.max(0, s.peak_ndvi) * 100}%"></i></span>${s.peak_ndvi.toFixed(2)}` : '—'}</td>
       <td>${s.clear_images} / ${s.images}</td></tr>`).join('');
     const T = STR.space.table;
+    setTimeout(() => renderZones(f.boundary, key), 0);
     box.innerHTML = `<p class="small muted">${esc(t('outline.set', { ha: veg.area_ha.toFixed(1) }))}</p>${greennessChart(veg)}
       <ul class="season-facts">${[...hintNotes(veg), ...spaceInsight(veg)].map((x) => `<li>${esc(x)}</li>`).join('')}</ul>
       <div class="table-wrap"><table class="simple"><thead><tr><th>${esc(T.year)}</th><th>${esc(T.likely)}</th><th>${esc(T.up)}</th><th>${esc(T.peak)}</th><th>${esc(T.value)}</th><th>${esc(T.clear)}</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <h3 class="sub-h">${esc(t('zones.title'))}</h3>
+      <div id="zones-map" class="zones-map"></div><p id="zones-text"></p>
       ${veg.delivery !== 'live' ? `<p class="demo-note">${esc(t('space.offline'))}</p>` : ''}
       <p class="small muted">${esc(t('space.hintNote'))} ${esc(t('space.ndviNote'))} ${esc(t('space.source', { from: fmtDateY(veg.period.start), to: fmtDateY(veg.period.end), clear: veg.stats.clear_images, total: veg.observations.length }))}</p>`;
   } catch (e) {
     if (state.vegFor === key) box.innerHTML = `<p class="loading error">${esc(t('space.failed', { error: e.message }))}</p>`;
+  }
+}
+
+const ZONE_COLOUR = { weaker: '#C58A3D', average: '#D9D4C3', stronger: '#2E7D32' };
+let zonesMap;
+async function renderZones(boundary, key) {
+  const text = () => $('zones-text');
+  try {
+    const z = await api.zones(boundary);
+    if (state.vegFor !== key || !text()) return;
+    if (z.status !== 'ok') { $('zones-map').hidden = true; text().textContent = z.status === 'too_small' ? t('zones.tooSmall') : z.message; return; }
+    if (zonesMap) zonesMap.remove();
+    zonesMap = L.map('zones-map', { zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false, doubleClickZoom: false, touchZoom: false });
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 }).addTo(zonesMap);
+    const layer = L.geoJSON(z.cells, { style: (ft) => ft.properties.zone === 'edge'
+      ? { color: '#FFFDF8', weight: 1, dashArray: '3 3', fillOpacity: 0 }
+      : { color: '#FFFDF8', weight: 0.6, fillColor: ZONE_COLOUR[ft.properties.zone], fillOpacity: 0.85 } });
+    zonesMap.fitBounds(layer.getBounds(), { padding: [10, 10] }); // set the view before adding vector layers
+    layer.addTo(zonesMap);
+    L.polygon(boundary.coordinates[0].map(([x, y]) => [y, x]), { color: '#FFFDF8', weight: 3, fill: false, interactive: false }).addTo(zonesMap);
+    const n = z.seasons_used.length, pct = (v) => Math.round(v * 100);
+    const legend = ['weaker', 'average', 'stronger'].map((k) => `<span><i style="background:${ZONE_COLOUR[k]}"></i>${esc(t('zones.' + k))}</span>`).join('') +
+      `<span><i class="edge"></i>${esc(t('zones.edge'))}</span>`;
+    text().innerHTML = `<span class="cal-legend zone-key">${legend}</span><br>${esc(z.uniform ? t('zones.uniform', { n })
+      : t('zones.summary', { w: pct(z.share.weaker), s: pct(z.share.stronger), n }))} ${esc(t('zones.note'))}`;
+  } catch (e) {
+    if (state.vegFor === key && text()) text().textContent = t('space.failed', { error: e.message });
   }
 }
 

@@ -94,3 +94,45 @@ def test_demo_field_works_offline_from_snapshots(monkeypatch):
         v = cl.post("/api/vegetation", json={"boundary": DEMO_FIELD["boundary"]})
         assert v.status_code == 200 and v.json()["delivery"] in ("snapshot", "offline-cache")
         assert v.json()["stats"]["clear_images"] > 50
+        z = cl.post("/api/zones", json={"boundary": DEMO_FIELD["boundary"]})
+        assert z.status_code == 200 and z.json()["status"] == "ok" and z.json()["delivery"] in ("snapshot", "offline-cache")
+
+
+def _px_obs(grid, season_dates, tile="T32VNR"):
+    """Synthetic per-pixel EVI readings on a 30 m UTM grid (EPSG:32632)."""
+    tf = [30.0, 0.0, 600000.0, 0.0, -30.0, 7040000.0]
+    return [{"id": f"x{i}", "date": d, "tile": tile, "crs": "EPSG:32632", "transform": tf, "shape": [len(grid), len(grid[0])],
+             "evi": [[v for v in row] for row in grid]} for i, d in enumerate(season_dates)]
+
+
+def _utm_square_geom(n):
+    from rasterio.warp import transform as warp
+    xs = [600000, 600000 + 30 * n, 600000 + 30 * n, 600000, 600000]
+    ys = [7040000, 7040000, 7040000 - 30 * n, 7040000 - 30 * n, 7040000]
+    lons, lats = warp("EPSG:32632", "EPSG:4326", xs, ys)
+    return {"type": "Polygon", "coordinates": [[[a, b] for a, b in zip(lons, lats)]]}
+
+
+def test_zones_find_a_consistently_weak_patch_and_ignore_edges():
+    n = 8
+    grid = [[0.6] * n for _ in range(n)]
+    for r in (3, 4):
+        for c in (3, 4):
+            grid[r][c] = 0.45          # weak interior patch, every season
+    grid[0][0] = 0.9                   # a bright edge pixel (hedge) must not become a zone
+    dates = [f"{y}-07-{d:02d}" for y in (2023, 2024, 2025) for d in (1, 10, 20)]
+    z = hls.compute_zones(_px_obs(grid, dates), _utm_square_geom(n), 63.0)
+    assert z["status"] == "ok"
+    cells = {(f["properties"]["zone"]) for f in z["cells"]["features"]}
+    weak = [f["properties"] for f in z["cells"]["features"] if f["properties"]["zone"] == "weaker"]
+    assert len(weak) == 4 and all(p["consistency"] == 1.0 and not p["edge"] for p in weak)
+    assert "stronger" not in cells   # the bright pixel is on the edge, so it is not classified
+    assert z["share"]["weaker"] == round(4 / 36, 3)
+
+
+def test_zones_say_uniform_or_too_small():
+    dates = [f"{y}-07-{d:02d}" for y in (2023, 2024) for d in (1, 10, 20)]
+    z = hls.compute_zones(_px_obs([[0.6] * 8 for _ in range(8)], dates), _utm_square_geom(8), 63.0)
+    assert z["status"] == "ok" and z["uniform"]
+    tiny = hls.compute_zones(_px_obs([[0.6] * 3 for _ in range(3)], dates), _utm_square_geom(3), 63.0)
+    assert tiny["status"] == "too_small"

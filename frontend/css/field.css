@@ -131,8 +131,12 @@ details summary { cursor: pointer; font-weight: 700; color: var(--green); min-he
 .outline { margin-top: 12px; padding: 12px 14px; border-radius: 14px; background: var(--green-soft); }
 .outline .hint { margin: 0 0 8px; color: var(--ink); }
 .actions.tight { margin: 0; }
-#space svg { width: 100%; height: auto; display: block; margin-top: 8px; }
+#space > svg { width: 100%; height: auto; display: block; margin-top: 8px; }
 .table-wrap { overflow-x: auto; margin-top: 12px; }
+.sub-h { font-size: 1.1rem; margin: 22px 0 8px; }
+.zones-map { height: 260px; border-radius: 14px; overflow: hidden; background: #dfe6d8; }
+.zone-key i.edge { border: 2px dashed var(--ink-2); background: transparent; }
+#zones-text { margin: 10px 0 0; }
 table.simple { width: 100%; border-collapse: collapse; font-size: .95rem; }
 table.simple th, table.simple td { text-align: left; padding: 9px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
 table.simple th { font-size: .85rem; color: var(--ink-2); }

@@ -81,6 +81,18 @@ main { max-width: 1360px; margin: 0 auto; padding: 0 clamp(16px, 3vw, 40px) 64px
 .season-key { display: flex; gap: 14px; flex-wrap: wrap; font-size: .8rem; color: var(--ink-2); }
 .season-key span { display: inline-flex; align-items: center; gap: 6px; }
 .season-key i { width: 14px; height: 4px; border-radius: 2px; display: inline-block; }
+.zones-block { margin: 18px 0; }
+.zones-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+.zones-map { height: 360px; border-radius: 12px; border: 1px solid var(--line); background: #0a0f14; }
+.zone-legend { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+.zone-legend div { display: flex; align-items: center; gap: 8px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: .85rem; }
+.zone-legend i { width: 14px; height: 14px; border-radius: 3px; display: inline-block; }
+.zone-legend i.edge { border: 1px dashed var(--ink-2); }
+.zone-legend .mono { margin-left: auto; color: var(--ink-2); font-size: .78rem; }
+.zone-stats { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: .82rem; margin: 0 0 8px; }
+.zone-stats dt { color: var(--muted); font: .72rem var(--mono); padding-top: 2px; }
+.zone-stats dd { margin: 0; }
+@media (max-width: 900px) { .zones-grid { grid-template-columns: 1fr; } }
 .sat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
 @media (max-width: 900px) { .sat-grid { grid-template-columns: 1fr; } }
 #map { height: min(68vh, 620px); min-height: 420px; background: #0a0f14; }

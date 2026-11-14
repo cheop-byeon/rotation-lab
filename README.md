@@ -205,6 +205,14 @@ The GIBS layers are for visual context. The numerical analysis uses NASA POWER o
   Each hint carries its evidence. The rules are for temperate seasons; southern dates are shifted six months, and the tropics are not covered.
   The field view calls these "likely" crops and says they are hints, not records. If the latest season's pattern differs from the crop the grower entered, it says so as an observation.
   On two Stjørdal test fields the hints read *spring-sown ×5* and *spring-sown → unclear → grass ×3* (a cereal followed by a ley). No ground-truth validation has been done yet.
+- **Productivity zones:** stronger and weaker parts of the field, from **EVI** (less saturated than NDVI in dense crops) for every 30 m pixel.
+  For each season, each pixel's 90th-percentile EVI (at least 3 clear images) is divided by the median of the field's interior pixels that season, which removes the effect of different crops in different years.
+  These values are averaged over at least 2 seasons. Weaker means below 0.95 of the field median, stronger above 1.05.
+  *Consistency* is the share of seasons in which a pixel fell on the same side of the median.
+  **Edge pixels** overlap hedges, roads and neighbouring fields, so they are drawn but never classified. In testing, a hedgerow made edge pixels look "stronger" until they were excluded.
+  If under 10% of the interior differs, the field is reported as uniform; with fewer than 8 interior pixels, as too small.
+  The zones are **uncalibrated**: satellite greenness, not measured yield. Both views say so.
+  Inspired by DigiFarm's productivity zones, which are calibrated on Norwegian yield data; ours are not.
 - **Cross-checks seen in testing (Stjørdal):** Sentinel-2 and Landsat values from the same day agree within about 0.02 NDVI, and emergence in early June matches the weather-based sowing window.
 - **Limits:** cloudy regions have gaps. A 30 m pixel needs fields of at least 0.3 ha, and edge pixels mix with the neighbouring land. NDVI differences between seasons also reflect *which crop* was grown.
 
@@ -239,7 +247,8 @@ backend/app/
   power.py           NASA POWER client: daily + climatology, retries, SQLite cache, snapshot fallback
   agro.py            agroclimatic engine: ET₀, GDD, frost dates, seasons, anomalies, soil-moisture percentiles, splice detection
   crops.py           crop catalog, crop-season simulation/suitability, rotation ranking
-  hls.py             NASA HLS field record: STAC search, Fmask cloud masking, NDVI/NDMI per image, season summaries, cache
+  hls.py             NASA HLS field record: STAC search, Fmask cloud masking, NDVI/NDMI per image, season summaries,
+                     crop-type hints, EVI productivity zones, cache and offline snapshots
   advisor.py         rule-based advisories with evidence, plus language-neutral codes for the field view
   main.py            FastAPI routes + static hosting
   db.py              SQLite (POWER + HLS caches, saved fields with optional outline and demo flag)
@@ -252,6 +261,7 @@ scripts/snapshot.py  save offline copies of POWER data
 | `POST /api/rotations/rank` | Rank rotations (optionally with the climate of `lat`/`lon`) |
 | `GET /api/layers` | NASA GIBS layer configuration |
 | `POST /api/vegetation` `{boundary, seasons}` | NASA HLS NDVI/NDMI record for a field outline (GeoJSON Polygon) |
+| `POST /api/zones` `{boundary, seasons}` | Productivity zones from multi-season HLS EVI (30 m pixels, GeoJSON cells) |
 | `GET /api/export.csv?lat&lon` | Daily NASA POWER data + ET₀ as CSV |
 | `GET/POST/PUT/DELETE /api/fields` | Saved fields |
 | `GET /api/health` | Server status |

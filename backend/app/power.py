@@ -7,6 +7,7 @@ Earth. Docs: https://power.larc.nasa.gov/docs/services/api/
 from __future__ import annotations
 
 import json
+import re
 import time
 from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
@@ -54,6 +55,7 @@ class DailySeries:
     source: str  # "live", "cache", "stale-cache" or "snapshot"
     request_url: str
     missing: dict[str, int] = field(default_factory=dict)
+    sources: list[str] = field(default_factory=list)
 
     def last_valid_date(self, param: str = "T2M") -> date | None:
         for d, v in zip(reversed(self.dates), reversed(self.values[param])):
@@ -176,11 +178,12 @@ def parse_daily(payload: dict, lat: float, lon: float, source: str, fetched_at: 
         source=source,
         request_url=request_url,
         missing=missing,
+        sources=payload.get("header", {}).get("sources", []),
     )
 
 
 async def fetch_climatology(lat: float, lon: float) -> dict:
-    """Monthly long-term means (2001–2020) from the POWER climatology service."""
+    """Monthly long-term means from the POWER climatology service (period read from the response)."""
     params = {
         "parameters": ",".join(CLIMATOLOGY_PARAMS),
         "community": "AG",
@@ -191,9 +194,12 @@ async def fetch_climatology(lat: float, lon: float) -> dict:
     payload, source, _ = await _cached("clim", lat, lon, CLIMATOLOGY_URL, params)
     data = payload["properties"]["parameter"]
     header = payload.get("header", {})
+    # e.g. "25-year ... Climatologies (January 2001 - December 2025)"
+    years = re.findall(r"\b(19\d\d|20\d\d)\b", header.get("range", ""))
     return {
         "source": source,
-        "period": f"{header.get('start', '2001')}–{header.get('end', '2020')}",
+        "period": f"{years[0]}–{years[-1]}" if years else "unknown period",
+        "sources": header.get("sources", []),
         "monthly": {p: [data[p].get(m) for m in MONTHS] for p in CLIMATOLOGY_PARAMS if p in data},
         "annual": {p: data[p].get("ANN") for p in CLIMATOLOGY_PARAMS if p in data},
     }

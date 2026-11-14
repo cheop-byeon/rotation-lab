@@ -95,6 +95,7 @@ export function renderCharts(d) {
     : 'Root-zone soil wetness from MERRA-2 via NASA POWER. The grey band is the typical range for each date over the last 10 years.';
 
   // Monthly anomalies (diverging: warm/cool)
+  document.querySelectorAll('.norm-period').forEach(e => { e.textContent = d.provenance.climatology?.period ?? 'long-term'; });
   const m = d.monthly, mlabels = m.map(x => fmtMonth(x.month) + (x.complete ? '' : '*'));
   draw('c-tanom', { type: 'bar', data: { labels: mlabels, datasets: [{ label: 'Anomaly °C', data: m.map(x => x.t_anomaly),
     backgroundColor: m.map(x => (x.t_anomaly ?? 0) >= 0 ? c.temp : c.rain), borderRadius: 3, borderSkipped: false, barPercentage: 0.85 }] },

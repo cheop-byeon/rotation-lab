@@ -109,7 +109,8 @@ def _analyze(c: agro.Climate, clim: dict | None, profile: dict) -> dict:
                      "hemisphere": "north" if c.north else "south"},
         "provenance": {
             "dataset": "NASA POWER Daily (Agroclimatology community), v2 API",
-            "sources": "MERRA-2 meteorology & soil wetness; CERES/GEOS solar irradiance",
+            "sources": "MERRA-2 reanalysis, GEOS-IT near-real-time (latest weeks), CERES SYN1deg solar"
+                       + (f" · response header: {', '.join(s.sources)}" if s.sources else ""),
             "grid": "0.5° × 0.625° (meteorology)",
             "request_url": s.request_url,
             "retrieved_at": s.retrieved_at,

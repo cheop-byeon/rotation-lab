@@ -195,3 +195,34 @@ scripts/snapshot.py  save offline copies of POWER data
 - The yield-stability component is a proxy (thermal reliability), not a yield model.
 - Soil texture, drainage and irrigation come from the farmer. Mapped soil data (e.g. NIBIO Kilden in Norway, SoilGrids globally) is a natural next step.
 - Latitudes are limited to −60° … 75°.
+
+## Roadmap: from demo point to a real field
+
+The platform analyzes a **point**. Turning it into advice for one documented parcel needs the inputs below.
+Start with one parcel in Stjørdal and use the same field ID across all inputs.
+
+| Dataset or input | Minimum to collect | Source | Status |
+| --- | --- | --- | --- |
+| Field boundary | One verified WGS84 GeoJSON Polygon or MultiPolygon with a stable field ID. Use a representative point inside the parcel for the weather query. | Grower-approved boundary or open agricultural parcel data verified against the actual field | **Not started.** Fields are a single point. |
+| Historical weather | Daily temperature and precipitation with dates, query coordinates, units, retrieval date, and missing-value metadata. | [NASA POWER Daily API](https://power.larc.nasa.gov/docs/services/api/temporal/daily/) | **Done.** 10 years, 9 parameters, provenance and missing-day counts in the UI. See [Data used](#data-used). |
+| Soil texture and drainage | Mapped topsoil texture and natural drainage for the parcel, plus coverage and source date. Where mapping is absent, record grower observations or a soil report and label the evidence source. | [NIBIO Kilden soil area reports](https://www.nibio.no/tjenester/kilden/veiledning-arealrapport) | **Partial.** Grower-entered only, and the evidence source is not recorded yet. |
+| Farm records and priorities | Previous crop at minimum, ideally several years of crop history, plus irrigation access and weights for soil health, water resilience, diversity, and yield stability. Record unknowns explicitly. | Grower or adviser | **Partial.** Previous crop, irrigation, priority weights and "Unknown" values are supported. Multi-year crop history is not. |
+| Regional crop reference | Crop families, broad water needs, drainage constraints, and locally suitable crop choices. Record the evidence and review date for each scoring assumption. | Local agronomist or documented regional guidance | **Partial.** 13 crops with approximate parameters in `backend/app/crops.py`. Not yet reviewed, and no review dates recorded. |
+
+The prototype's fixed 240 mm summer-rainfall cutoff has been replaced by crop water need (Kc × ET₀) computed for each crop and season.
+The crop parameters, the scoring rules and the viability gate still need review by a local agronomist before rankings are used for farm decisions. Yield stability is a proxy score.
+
+### Optional datasets
+
+- **Satellite vegetation comparison.** Use two comparable Sentinel-2 L2A acquisitions over the parcel. Retain acquisition dates, product IDs, valid-pixel coverage, red (B04), near infrared (B08), and the scene classification layer for masking. Compute NDVI after masking and clipping. Interpret changes alongside crop stage and management history. [Copernicus Sentinel-2 L2A](https://documentation.dataspace.copernicus.eu/APIs/SentinelHub/Data/S2L2A.html)
+  *Today the map shows MODIS 8-day NDVI at 250 m for visual context only. A parcel-level Sentinel-2 NDVI (10 m) is not implemented.*
+- **Terrain for geographic 3D.** Obtain a digital elevation model covering the same parcel, with resolution, vertical datum, and usage terms recorded.
+  *The mockup's illustrative 3D field preview was not carried over into this platform.*
+
+### First real-data release checklist
+
+- [ ] Load the verified parcel and attach soil evidence and grower inputs.
+- [x] Fetch and validate daily NASA POWER weather, then preserve a dated copy for offline demos (`data/snapshots/`, `scripts/snapshot.py`).
+- [x] Show the source, dates, coverage, and missing values next to the data in the UI (*Data provenance* section).
+- [ ] Have an agronomist review the scoring assumptions.
+- [ ] Verify on the deployed app that changing a crop or priority recalculates the ranking and that the score breakdown identifies the inputs used. *(Verified on a local run; no deployed instance exists yet.)*

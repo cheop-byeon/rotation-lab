@@ -2,6 +2,19 @@
 
 rotation-lab is a crop rotation planner built for the [NASA Space Apps Field Shift challenge](https://www.spaceappschallenge.org/2026/challenges/field-shift-adapting-farms-with-nasa-data/). Compare three-year crop sequences, adjust farm priorities, and inspect how the inputs contribute to each ranking.
 
+## The problem and how rotation-lab helps
+
+A grower choosing what to plant next has to weigh several seasons at once. A familiar crop may fit the farm's equipment and market, while a different crop family may improve rotation diversity. Rainfall, soil texture, drainage, and irrigation access can change which sequence is practical. That information often lives in separate maps, weather records, and farm notes.
+
+| Problem | How rotation-lab helps |
+| --- | --- |
+| Crop choices affect later seasons. | Edit three-year sequences side by side and see where the same crop family repeats, including the transition from the previous crop. |
+| Soil and water priorities can pull in different directions. | Enter soil texture, drainage, and irrigation access, then adjust the priority weights to see which rotation ranks higher under those assumptions. |
+| Weather records are hard to apply to a rotation decision. | Summarize historical NASA POWER rainfall and temperature for the demo location. In the prototype, rainfall can affect the water score and temperature provides context. |
+| A ranking alone gives growers little to review. | Open each score breakdown to see the factors behind it. The real-field release will attach parcel and soil sources so growers can check the evidence alongside their own records. |
+
+The prototype supports comparing options with a grower or adviser. Its scores reflect explicit rules and user priorities. Field-specific advice requires verified local inputs and agronomic review.
+
 ## Run the prototype
 
 From the directory containing `index.html`, run:

@@ -26,7 +26,7 @@ So our question is simple: for this one field, what grows well, when should I pl
 
 ## 3. Built on open NASA data
 
-Everything runs on free NASA data.
+Everything runs on open NASA data.
 
 First, NASA POWER. It gives daily weather and soil moisture for the field, all the way back to 1981.
 
@@ -78,7 +78,7 @@ When the app is not sure, it says so, and it tells you why.
 
 It never gives orders. What we check is the farmer’s own plan.
 
-And it’s free, with no account. On a laptop it works for any field, even offline. Online, you can try two demo fields.
+And every finding links to its evidence: the charts and the NASA records behind it. So you can check it yourself.
 
 ## 7. Try it
 

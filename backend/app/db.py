@@ -13,23 +13,19 @@ SERVERLESS = bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTIO
 _default_db = Path("/tmp/rotation_lab.db") if SERVERLESS else Path(__file__).resolve().parents[2] / "data" / "rotation_lab.db"
 DB_PATH = Path(os.environ.get("ROTATION_LAB_DB", _default_db))
 
-# Demo field: a real arable field near Stjørdal (Trøndelag, Norway). Its outline is the property parcel from
-# Kartverket's open property service, and the crops are what the farm reported to Landbruksdirektoratet
-# (production subsidy applications, open data under NLOD). The farm reported the same 46 daa every year and one crop
-# on all of it, so the farm's crop is this field's crop. Soil, drainage and irrigation are not known, so they are left
-# unknown rather than invented. The farm is not named in the app.
-REPORTED_SOURCE = ("Landbruksdirektoratet, production subsidy applications 2017–2024 (open data, NLOD): "
-                   "one crop on all of the farm's 46 daa each year")
+# Demo field: a real arable field near Stjørdal (Trøndelag, Norway), filled from public records only:
+# - outline: the property parcel from Kartverket's open property service (it follows the field's edges);
+# - soil: "Loamy", the ISRIC SoilGrids estimate for the location (loam, ~52% sand, 10% clay; a 250 m model);
+# - crops: not stored here; /api/farm-crops reads what the farm based on this property reported to
+#   Landbruksdirektoratet (one crop on all its arable land every year 2017–2024, so also this field's crop);
+# - drainage and irrigation: no public source reached, so left unknown rather than invented.
+# The farm is not named in the app.
 DEMO_FIELD = {
-    "name": "Stjørdal 01", "lat": 63.4806, "lon": 10.8756, "soil": "Unknown", "drainage": "Unknown", "irrigation": "Unknown",
+    "name": "Stjørdal 01", "lat": 63.4806, "lon": 10.8756, "soil": "Loamy", "drainage": "Unknown", "irrigation": "Unknown",
     "previous_crop": "Grass–clover ley",
-    "notes": "Demo field, Trøndelag, Norway. Real field: outline from Kartverket, crops 2017–2024 as reported by the farm "
-             "to Landbruksdirektoratet. Soil, drainage and irrigation not known.",
+    "notes": "Demo field, Trøndelag, Norway. Real field from public records: outline from Kartverket, soil estimated by "
+             "SoilGrids, crops as reported by its farm to Landbruksdirektoratet. Drainage and irrigation not known.",
     "boundary": {"type": "Polygon", "coordinates": [[[10.876296, 63.480376], [10.876188, 63.480341], [10.875655, 63.48018], [10.875261, 63.480043], [10.874719, 63.479882], [10.873836, 63.479605], [10.873578, 63.47952], [10.873542, 63.479536], [10.873382, 63.479607], [10.872323, 63.480731], [10.875705, 63.48146], [10.875844, 63.481404], [10.875954, 63.481358], [10.876041, 63.481318], [10.876115, 63.481271], [10.876181, 63.481228], [10.876247, 63.481174], [10.876296, 63.481105], [10.876327, 63.481028], [10.876358, 63.480947], [10.876368, 63.480854], [10.876369, 63.480766], [10.876364, 63.480674], [10.876344, 63.480575], [10.876303, 63.480488], [10.87628, 63.480416], [10.8763, 63.480377], [10.876296, 63.480376]]]},
-    "reported_crops": [{"year": 2017, "crop": "Winter wheat"}, {"year": 2018, "crop": "Winter wheat"},
-                       {"year": 2019, "crop": "Winter wheat"}, {"year": 2020, "crop": "Barley"},
-                       {"year": 2021, "crop": "Grass ley"}, {"year": 2022, "crop": "Grass ley"},
-                       {"year": 2023, "crop": "Grass ley"}, {"year": 2024, "crop": "Grass ley"}],
 }
 DEMO_FIELDS = [DEMO_FIELD]
 RETIRED_DEMOS = ("Orosháza 01",)  # demo fields removed from the app; dropped from existing databases
@@ -78,7 +74,7 @@ def init_db() -> None:
         con.executemany("DELETE FROM fields WHERE demo = 1 AND name = ?", [(n,) for n in RETIRED_DEMOS])
         for d in DEMO_FIELDS:
             values = (d["lat"], d["lon"], d["soil"], d["drainage"], d["irrigation"], d["previous_crop"], d["notes"],
-                      json.dumps(d["boundary"]), json.dumps(d.get("reported_crops")), d["name"])
+                      json.dumps(d["boundary"]), None, d["name"])
             # An untouched demo field (editing clears the demo flag) always follows the current definition.
             if not con.execute("UPDATE fields SET lat=?, lon=?, soil=?, drainage=?, irrigation=?, previous_crop=?, notes=?, "
                                "boundary=?, reported_crops=? WHERE demo = 1 AND name = ?", values).rowcount:

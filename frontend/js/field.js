@@ -83,6 +83,29 @@ function setPick(lat, lon, fly, keepOutline = false) {
   else state.pickMarker = L.marker([lat, lon], { icon: reticle(), interactive: false }).addTo(state.pickMap);
   if (fly) state.pickMap.setView([lat, lon], 13);
   $('pick-status').textContent = t('field.picked', { lat: state.pending.lat, lon: state.pending.lon });
+  soilHint(state.pending.lat, state.pending.lon);
+}
+
+function soilChips() {
+  const opts = ['Sandy', 'Loamy', 'Silty', 'Clayey', 'Peat', 'Unknown'].map((v) => ({ value: v, label: t(`field.soil.${v}`) }));
+  chips('q-soil', opts, state.pending.soil, (v) => { state.pending.soil = v; });
+}
+
+// Soil texture estimate for the picked spot (ISRIC SoilGrids, 250 m model). Fills the answer only if it is still unset.
+async function soilHint(lat, lon) {
+  const box = $('soil-hint');
+  try {
+    const s = await api.soil(lat, lon);
+    if (state.pending?.lat !== lat || state.pending?.lon !== lon) return;  // a newer spot was picked meanwhile
+    if (s.status !== 'ok') { box.hidden = true; return; }
+    const label = t(`field.soil.${s.soil}`);
+    box.textContent = t('field.soilEstimate', { soil: label, sand: s.sand_pct, clay: s.clay_pct });
+    box.hidden = false;
+    if (!state.pending.soil || state.pending.soil === 'Unknown') {
+      state.pending.soil = s.soil;
+      soilChips();
+    }
+  } catch { box.hidden = true; }
 }
 
 // ------------------------------------------------------------------ field
@@ -120,7 +143,7 @@ function openChooser(startDrawing = false) {
   state.pending = { ...f, name: f.demo ? t('field.defaultName') : f.name, id: f.demo ? null : f.id, demo: 0 };
   $('f-name').value = state.pending.name;
   const opts = (key, values) => values.map((v) => ({ value: v, label: t(`field.${key}.${v}`) }));
-  chips('q-soil', opts('soil', ['Sandy', 'Loamy', 'Clayey', 'Peat', 'Unknown']), state.pending.soil, (v) => { state.pending.soil = v; });
+  soilChips();
   chips('q-drainage', opts('drainage', ['Good', 'Moderate', 'Poor', 'Unknown']), state.pending.drainage, (v) => { state.pending.drainage = v; });
   chips('q-irrigation', opts('irrigation', ['Yes', 'No', 'Unknown']), state.pending.irrigation, (v) => { state.pending.irrigation = v; });
   chips('q-previous', state.catalog.map((c) => ({ value: c.name, label: `${ICON[c.name] || '🌱'} ${esc(cropName(c.name))}` })), state.pending.previous_crop, (v) => { state.pending.previous_crop = v; });
@@ -579,24 +602,32 @@ function hintNotes(veg) {
   return out;
 }
 
-// Crops reported for the field (e.g. by the farm to Landbruksdirektoratet), compared with the satellite hint.
+// Crops the farm based on the field's property reported to Landbruksdirektoratet (per farm, Norway only), compared
+// with the satellite hint. Only years with one crop on all the farm's arable land say what grew on this field.
 // A cereal undersown with grass reads as a new ley in its sowing year, so a new ley fits both.
 const HINT_FOR_REPORTED = (crop) => (/winter|autumn|høst/i.test(crop) ? ['winter_crop']
   : /grass|ley|eng/i.test(crop) ? ['grass', 'new_ley'] : /potato|maize/i.test(crop) ? ['late_crop'] : ['spring_crop', 'new_ley']);
-function reportedBySeason(f) {
-  return f?.reported_crops?.length ? Object.fromEntries(f.reported_crops.map((r) => [String(r.year), r.crop])) : null;
+function reportedBySeason(fc) {
+  if (fc?.status !== 'ok' || fc.farms.length !== 1) return null;  // several farms on one property: can't tell whose field
+  return Object.fromEntries(fc.farms[0].years.map((y) => [String(y.year), y]));
 }
-function reportedFits(crop, hint) {
+function reportedFits(y, hint) {
+  if (!y?.one_crop) return null;
+  const crop = y.main;
   return ['grass', 'new_ley', 'spring_crop', 'winter_crop', 'late_crop'].includes(hint) ? HINT_FOR_REPORTED(crop).includes(hint) : null;
 }
-function reportedCell(crop, hint) {
-  if (!crop) return '<span class="muted">—</span>';
-  const ok = reportedFits(crop, hint);
-  return `${esc(crop)}${ok == null ? '' : ` <span class="${ok ? 'rep-ok' : 'rep-diff'}">· ${esc(t(ok ? 'space.reportedFits' : 'space.reportedDiffers'))}</span>`}`;
+function reportedCell(y, hint) {
+  if (!y) return '<span class="muted">—</span>';
+  if (!y.one_crop) {
+    const mix = Object.entries(y.areas).filter(([k]) => k !== 'Pasture').sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(', ');
+    return `<span class="muted">${esc(t('space.reportedMixed', { mix }))}</span>`;
+  }
+  const ok = reportedFits(y, hint);
+  return `${esc(y.main)}${ok == null ? '' : ` <span class="${ok ? 'rep-ok' : 'rep-diff'}">· ${esc(t(ok ? 'space.reportedFits' : 'space.reportedDiffers'))}</span>`}`;
 }
 function reportedNotes(veg, rep) {
   if (!rep) return [];
-  const judged = veg.seasons.filter((s) => rep[s.label] && reportedFits(rep[s.label], s.crop_hint?.type) != null);
+  const judged = veg.seasons.filter((s) => reportedFits(rep[s.label], s.crop_hint?.type) != null);
   return judged.length ? [t('space.reportedScore', { ok: judged.filter((s) => reportedFits(rep[s.label], s.crop_hint.type)).length, n: judged.length })] : [];
 }
 
@@ -611,9 +642,9 @@ async function renderSpace(f) {
   state.vegFor = key;
   box.innerHTML = `<p class="loading">${esc(t('space.loading'))}</p>`;
   try {
-    const veg = await api.vegetation(f.boundary);
+    const [veg, fc] = await Promise.all([api.vegetation(f.boundary), api.farmCrops(f.lat, f.lon).catch(() => null)]);
     if (state.vegFor !== key) return; // a newer field was chosen meanwhile
-    const rep = reportedBySeason(f);
+    const rep = reportedBySeason(fc);
     const rows = veg.seasons.map((s) => `<tr><td><b>${esc(s.label)}</b></td>
       <td title="${esc(s.crop_hint?.evidence ?? '')}">${esc(t(`space.hint.${s.crop_hint?.type ?? 'unknown'}`))}</td>
       ${rep ? `<td>${reportedCell(rep[s.label], s.crop_hint?.type)}</td>` : ''}
@@ -629,7 +660,7 @@ async function renderSpace(f) {
       <h3 class="sub-h">${esc(t('zones.title'))}</h3>
       <div id="zones-map" class="zones-map"></div><p id="zones-text"></p>
       ${veg.delivery !== 'live' ? `<p class="demo-note">${esc(t('space.offline'))}</p>` : ''}
-      ${rep ? `<p class="small muted">${esc(t('space.reportedNote', { source: f.reported_source }))}</p>` : ''}
+      ${rep ? `<p class="small muted">${esc(t('space.reportedNote'))}</p>` : fc && ['no_farm', 'ok'].includes(fc.status) ? `<p class="small muted">${esc(fc.status === 'ok' ? t('space.reportedSeveral') : t('space.reportedNone'))}</p>` : ''}
       <p class="small muted">${esc(t('space.hintNote'))} ${esc(t('space.ndviNote'))} ${esc(t('space.source', { from: fmtDateY(veg.period.start), to: fmtDateY(veg.period.end), clear: veg.stats.clear_images, total: veg.observations.length }))}</p>`;
   } catch (e) {
     if (state.vegFor === key) box.innerHTML = `<p class="loading error">${esc(t('space.failed', { error: e.message }))}</p>`;

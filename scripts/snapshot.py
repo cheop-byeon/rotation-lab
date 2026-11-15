@@ -1,6 +1,7 @@
 """Save dated copies of NASA data to data/snapshots so the demo works without internet.
 
-With no arguments: the demo fields (NASA POWER weather + NASA HLS satellite record for its outline).
+With no arguments: the demo fields (NASA POWER weather, NASA HLS satellite record for its outline, SoilGrids soil and
+the Kartverket property lookup for its reported crops).
 With "lat lon" pairs: NASA POWER weather for those points.
 
     .venv/bin/python scripts/snapshot.py
@@ -13,7 +14,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
-from app import hls, neighbourhood, power  # noqa: E402
+from app import hls, neighbourhood, power, publicdata  # noqa: E402
 from app.db import DEMO_FIELDS, init_db  # noqa: E402
 
 
@@ -41,6 +42,10 @@ def main(points):
         nb = neighbourhood.neighbourhood(f["boundary"])
         print(f"{f['name']} area around: {nb.get('farmland_ha')} ha farmland ({nb.get('delivery')})")
         print("saved", neighbourhood.save_snapshot(f["boundary"]))
+        print(f"{f['name']} soil: {asyncio.run(publicdata.soil(f['lat'], f['lon'])).get('soil')}")
+        print("saved", publicdata.save_snapshot(publicdata.soil_key(f["lat"], f["lon"])))
+        print(f"{f['name']} farm crops: {asyncio.run(publicdata.farm_crops(f['lat'], f['lon']))['status']}")
+        print("saved", publicdata.save_snapshot(publicdata.property_key(f["lat"], f["lon"])))
 
 
 if __name__ == "__main__":

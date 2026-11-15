@@ -365,8 +365,11 @@ function renderCropCheck(f) {
     sel.innerHTML = state.catalog.map((c) => `<option value="${esc(c.name)}">${esc(cropName(c.name))}</option>`).join('');
     sel.value = state.catalog.some((c) => c.name === 'Potato') ? 'Potato' : state.catalog[0]?.name;
   }
-  sel.onchange = () => showCropCheck(f, sel.value);
-  showCropCheck(f, sel.value);
+  // The evidence link opens the data view's crop panel on the same crop.
+  const link = () => { const a = document.querySelector('a.why[data-anchor="crop-then-now"]');
+    if (a) { const u = new URL(a.href, location.href); u.searchParams.set('crop', sel.value); a.href = u.pathname + u.search + u.hash; } };
+  sel.onchange = () => { showCropCheck(f, sel.value); link(); };
+  showCropCheck(f, sel.value); link();
 }
 
 async function showCropCheck(f, crop) {

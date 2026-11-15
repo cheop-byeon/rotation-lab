@@ -364,7 +364,8 @@ async function renderCropCheck(f) {
   if (!sel.options.length) {
     const cat = state.crops.length ? state.crops : (await api.crops()).crops;
     sel.innerHTML = cat.map((c) => `<option>${esc(c.name)}</option>`).join('');
-    sel.value = cat.some((c) => c.name === 'Potato') ? 'Potato' : cat[0].name;
+    const asked = state.askedCrop;  // from ?crop= (e.g. the field view's crop check), read at startup
+    sel.value = cat.some((c) => c.name === asked) ? asked : cat.some((c) => c.name === 'Potato') ? 'Potato' : cat[0].name;
   }
   const show = async () => {
     const key = `${f.lat},${f.lon},${sel.value}`; state.ccFor = key;
@@ -632,6 +633,7 @@ function wireUI() {
 
 async function boot() {
   const qs = new URLSearchParams(location.search);  // read before anything rewrites the address
+  state.askedCrop = qs.get('crop');
   wireUI(); wirePlanner();
   try {
     await api.health(); $('api-dot').className = 'dot ok';

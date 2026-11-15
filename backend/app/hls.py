@@ -508,11 +508,15 @@ def crop_hint(obs: list[dict], lat: float) -> dict:
         kind = "unclear"
     # Northern leys green up late after snow and are cut, so they can miss the early test. A curve that never drops
     # below green through late summer and is still green in autumn has had no harvest: grass or ley (incl. newly sown).
-    if kind in ("unclear", "late_crop"):
+    # A field that was bare in spring (sown this year) and then stayed green into autumn is a new ley: often grass
+    # sown under a spring cereal, which is harvested while the grass keeps growing (common in Trøndelag). Checked on a
+    # real Stjørdal field: reported barley in 2020, grass from 2021; the satellite curve was bare in May 2020 and
+    # green from July into October.
+    if kind in ("unclear", "late_crop", "spring_crop"):
         summer = window(SUMMER)
         if len(late) >= 2 and len(summer) >= 2 and float(np.median(late)) >= GREEN and min(summer) >= GREEN:
-            kind = "grass"
             ev += f"; stayed green all summer (lowest {min(summer):.2f}) and into autumn (median {float(np.median(late)):.2f})"
+            kind = "new_ley" if e < BARE else "grass"
     return {"type": kind, "evidence": ev}
 
 
@@ -605,7 +609,7 @@ def productivity_trend(season_list: list[dict]) -> dict:
                      "with the same likely crop when the crop changed."}
     if len(pts) < MIN_TREND_SEASONS:
         return {**out, "status": "too_few", "direction": None}
-    kinds = [c for _, _, c in pts if c in ("grass", "spring_crop", "winter_crop", "late_crop")]
+    kinds = [c for _, _, c in pts if c in ("grass", "new_ley", "spring_crop", "winter_crop", "late_crop")]
     # A perennial ley followed by cereals is "less green" without the field getting worse: with mixed crops the
     # overall line is not a fair comparison, so only same-crop seasons are judged.
     if kinds:
@@ -665,7 +669,7 @@ def usual_range(by_season: dict[int, list[dict]], season_list: list[dict], lat: 
         return None
     cur = season_list[-1]
     crop = (cur.get("crop_hint") or {}).get("type")
-    known = crop in ("grass", "spring_crop", "winter_crop", "late_crop")
+    known = crop in ("grass", "new_ley", "spring_crop", "winter_crop", "late_crop")
     pool = [s for s in season_list[:-1] if known and (s.get("crop_hint") or {}).get("type") == crop]
     basis = "same_crop"
     if not known:  # crop not clear yet (early in the season): compare with every earlier season
@@ -831,6 +835,7 @@ def _assemble(geom, bkey, lat, lon, start, end, all_obs, delivery, counts, t0) -
                    "crop_hint": "Rules on the curve: green in late Apr–May and again in Sep–Oct (highest value) = grass/ley; green in spring, bare in autumn = "
                                 "winter-sown; bare in spring, peak before Aug = spring-sown; peak Aug or later = late crop; "
                                 "peak NDVI < 0.5 = bare/fallow/failed; an unclear or late curve that never drops below 0.5 from late July to "
-                     "early September and is still ≥ 0.5 in Sep–Oct = grass/ley (no harvest). Temperate only; southern dates shifted six months."},
+                     "early September and is still ≥ 0.5 in Sep–Oct = grass/ley (no harvest), or a new ley if the field was bare in spring "
+                     "(often grass sown under a spring cereal). Temperate only; southern dates shifted six months."},
         "attribution": ATTRIBUTION,
     }

@@ -25,7 +25,7 @@ FARMLAND = (40, 30)            # WorldCover: cropland, grassland
 MIN_SEEN = 0.3                 # share of farmland pixels that must be classified for a season to count
 NOTABLE_PP = 5                 # total change (percentage points) worth mentioning
 MIN_TREND = 5                  # usable seasons needed before talking about a shift
-CLASSES = ["unknown", "bare", "grass", "winter_crop", "spring_crop", "late_crop", "unclear"]
+CLASSES = ["unknown", "bare", "grass", "winter_crop", "spring_crop", "late_crop", "unclear", "new_ley"]
 WORLDCOVER = "esa-worldcover"
 SNAP_DIR = Path(__file__).resolve().parents[2] / "data" / "snapshots"
 
@@ -60,12 +60,13 @@ def classify(ndvi: np.ndarray, dates: list[date], lat: float) -> np.ndarray:
     out[e < hls.BARE] = np.where(before_aug[peak_i], 4, 5)[e < hls.BARE]
     green = e >= hls.GREEN
     out[green] = np.where(np.isnan(lmax), 0, np.where(lmax >= 0.45, 2, 3))[green]
-    # grass/ley that missed the early test: never below green in late summer, still green in autumn (see hls.crop_hint)
+    # never below green in late summer and still green in autumn: grass/ley, or a new ley if bare in spring (see hls.crop_hint)
     n_sum = ok[summer].sum(0)
     lmed = np.nanmedian(ndvi[late], 0) if late.any() else np.full(ndvi.shape[1], np.nan)
     smin = np.nanmin(ndvi[summer], 0) if summer.any() else np.full(ndvi.shape[1], np.nan)
     stays = (n_late >= 2) & (n_sum >= 2) & (lmed >= hls.GREEN) & (smin >= hls.GREEN)
-    out[((out == 5) | (out == 6)) & stays] = 2
+    grows_on = ((out == 4) | (out == 5) | (out == 6)) & stays
+    out[grows_on] = np.where(e < hls.BARE, 7, 2)[grows_on]
     out[peak < hls.GREEN] = 1
     out[(n_good < 6) | (n_early < 2)] = 0
     return out
@@ -146,7 +147,7 @@ def _summarise(cls_by_season, farm, labels):
         seen = len(known) / n_farm if n_farm else 0
         row = {"season": season, "label": labels[season], "farmland_px": n_farm, "classified_share": round(seen, 3),
                "usable": seen >= MIN_SEEN}
-        row["shares"] = {CLASSES[k]: round(counts.get(k, 0) / len(known), 3) for k in range(1, 7)} if len(known) else {}
+        row["shares"] = {CLASSES[k]: round(counts.get(k, 0) / len(known), 3) for k in range(1, len(CLASSES))} if len(known) else {}
         rows.append(row)
     use = [r for r in rows if r["usable"]]
     change = None

@@ -182,7 +182,7 @@ export function renderTrendChart(trend) {
   const key = trend.status === 'mixed_crops' ? trend.same_crop?.crop : null;
   const crop = (v) => (v || 'unclear').replace('_', ' ');
   // With mixed crops, each likely crop gets its own colour (fixed per crop, from the validated season palette).
-  const CROP_COLOUR = { grass: '#2fa477', winter_crop: '#2e98c4', spring_crop: '#c8801f', late_crop: '#9d5bdb' };
+  const CROP_COLOUR = { grass: '#2fa477', new_ley: '#c2547f', winter_crop: '#2e98c4', spring_crop: '#c8801f', late_crop: '#9d5bdb' };
   const groups = trend.status === 'mixed_crops'
     ? [...new Set(pts.map((p) => (p.crop in CROP_COLOUR ? p.crop : 'other')))].map((k) => [k, pts.filter((p) => (p.crop in CROP_COLOUR ? p.crop : 'other') === k)])
     : [[null, pts]];
@@ -231,7 +231,7 @@ export function renderChangeChart(m, d, canvas = 'c-change') {
 export function renderAroundChart(d, colours, names) {
   const c = C();
   const seasons = d.seasons.filter((s) => s.usable);
-  const keys = ['spring_crop', 'winter_crop', 'late_crop', 'grass', 'unclear', 'bare'];
+  const keys = ['spring_crop', 'new_ley', 'winter_crop', 'late_crop', 'grass', 'unclear', 'bare'];
   const sets = keys.map((k) => ({ label: names[k], data: seasons.map((s) => +(100 * (s.shares[k] || 0)).toFixed(1)),
     backgroundColor: colours[k], borderColor: c.surface, borderWidth: { top: 2 }, borderSkipped: false, stack: 'all' }));
   const o = base(c, { yTitle: '% of farmland', yMin: 0, yMax: 100 });

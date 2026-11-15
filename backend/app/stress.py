@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import date
 from statistics import median
 
-COMPARABLE = ("grass", "spring_crop", "winter_crop", "late_crop")
+COMPARABLE = ("grass", "new_ley", "spring_crop", "winter_crop", "late_crop")
 DEFICIT = -0.10          # flag a season at least 10% below its same-crop reference
 MIN_OTHERS = 2           # same-crop seasons needed besides the one judged
 MIN_WEATHER = 5          # weather seasons needed to call something unusual

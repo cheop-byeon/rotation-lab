@@ -358,6 +358,7 @@ async function renderAround(f) {
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 }).addTo(aroundMap);
     const [w, s, e, n] = d.bbox;
     aroundMap.fitBounds([[s, w], [n, e]]);  // set the view before adding vector layers
+    refitWhenShown(aroundMap, [[s, w], [n, e]]);
     if (d.map.cells) L.geoJSON(d.map.cells, { style: (ft) => ({ stroke: false, fillColor: AROUND_COLOUR[ft.properties.class], fillOpacity: 0.7 }) }).addTo(aroundMap);
     L.polygon(f.boundary.coordinates[0].map(([x, y]) => [y, x]), { color: '#FFFDF8', weight: 3, fill: false, interactive: false }).addTo(aroundMap);
   } catch (e) {
@@ -667,12 +668,13 @@ async function renderSpace(f) {
     setTimeout(() => renderZones(f.boundary, key), 0);
     box.innerHTML = `<p class="small muted">${esc(t('outline.set', { ha: veg.area_ha.toFixed(1) }))}</p>${greennessChart(veg)}
       <ul class="season-facts">${[...reportedNotes(veg, rep), ...hintNotes(veg), ...trendNote(veg), ...seasonCheckNotes(veg)].map((x) => `<li>${esc(x)}</li>`).join('')}</ul>
-      <div class="table-wrap"><table class="simple"><thead><tr><th>${esc(T.year)}</th><th>${esc(T.likely)}</th>${rep ? `<th>${esc(T.reported)}</th>` : ''}<th>${esc(T.up)}</th><th>${esc(T.peak)}</th><th>${esc(T.value)}</th><th>${esc(T.clear)}</th></tr></thead><tbody>${rows}</tbody></table></div>
-      <h3 class="sub-h">${esc(t('zones.title'))}</h3>
-      <div id="zones-map" class="zones-map"></div><p id="zones-text"></p>
+      <details class="more"><summary>${esc(t('space.moreSeasons'))}</summary><div class="table-wrap"><table class="simple"><thead><tr><th>${esc(T.year)}</th><th>${esc(T.likely)}</th>${rep ? `<th>${esc(T.reported)}</th>` : ''}<th>${esc(T.up)}</th><th>${esc(T.peak)}</th><th>${esc(T.value)}</th><th>${esc(T.clear)}</th></tr></thead><tbody>${rows}</tbody></table></div></details>
+      <details class="more"><summary>${esc(t('zones.title'))}</summary>
+      <div id="zones-map" class="zones-map"></div><p id="zones-text"></p></details>
       ${veg.delivery !== 'live' ? `<p class="demo-note">${esc(t('space.offline'))}</p>` : ''}
+      <details class="more"><summary>${esc(t('space.about'))}</summary>
       ${rep ? `<p class="small muted">${esc(t('space.reportedNote'))}</p>` : fc && ['no_farm', 'ok'].includes(fc.status) ? `<p class="small muted">${esc(fc.status === 'ok' ? t('space.reportedSeveral') : t('space.reportedNone'))}</p>` : ''}
-      <p class="small muted">${esc(t('space.hintNote'))} ${esc(t('space.ndviNote'))} ${esc(t('space.source', { from: fmtDateY(veg.period.start), to: fmtDateY(veg.period.end), clear: veg.stats.clear_images, total: veg.observations.length }))}</p>`;
+      <p class="small muted">${esc(t('space.hintNote'))} ${esc(t('space.ndviNote'))} ${esc(t('space.source', { from: fmtDateY(veg.period.start), to: fmtDateY(veg.period.end), clear: veg.stats.clear_images, total: veg.observations.length }))}</p></details>`;
   } catch (e) {
     if (state.vegFor === key) box.innerHTML = `<p class="loading error">${esc(t('space.failed', { error: e.message }))}</p>`;
   }
@@ -693,6 +695,7 @@ async function renderZones(boundary, key) {
       ? { color: '#FFFDF8', weight: 1, dashArray: '3 3', fillOpacity: 0 }
       : { color: '#FFFDF8', weight: 0.6, fillColor: ZONE_COLOUR[ft.properties.zone], fillOpacity: 0.85 } });
     zonesMap.fitBounds(layer.getBounds(), { padding: [10, 10] }); // set the view before adding vector layers
+    refitWhenShown(zonesMap, layer.getBounds(), { padding: [10, 10] });
     layer.addTo(zonesMap);
     L.polygon(boundary.coordinates[0].map(([x, y]) => [y, x]), { color: '#FFFDF8', weight: 3, fill: false, interactive: false }).addTo(zonesMap);
     const n = z.seasons_used.length, pct = (v) => Math.round(v * 100);
@@ -720,7 +723,26 @@ function renderSource(d) {
 }
 
 // ------------------------------------------------------------------ wiring
+// One topic at a time: Now, Your field, Climate, Plan. A map drawn while hidden has no size, so maps re-fit their
+// bounds when their tab or "show more" section opens.
+const refits = new Map();  // map -> [bounds, options]
+function refitWhenShown(map, bounds, opts) { refits.set(map, [bounds, opts]); }
+function refitVisible() {
+  for (const [map, [bounds, opts]] of refits) {
+    if (!map.getContainer().isConnected) { refits.delete(map); continue; }
+    if (map.getContainer().offsetWidth) { map.invalidateSize(); map.fitBounds(bounds, opts); }
+  }
+}
+function showTab(name) {
+  document.querySelectorAll('.tabs [data-tab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === name)));
+  document.querySelectorAll('[data-panel]').forEach((p) => { p.hidden = p.dataset.panel !== name; });
+  refitVisible();
+}
+
 function wire() {
+  document.querySelector('.tabs').onclick = (e) => { const b = e.target.closest('[data-tab]'); if (b) showTab(b.dataset.tab); };
+  document.addEventListener('toggle', refitVisible, true);  // maps inside "show more"
+  showTab('now');
   $('choose-btn').onclick = () => openChooser();
   $('locate-btn').onclick = () => {
     if (!navigator.geolocation) { $('pick-status').textContent = t('field.locationFailed'); return; }

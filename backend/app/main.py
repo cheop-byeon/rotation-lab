@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field, field_validator
 
 import json
 
-from . import agro, change, cropcheck, crops, hls, power, stress
+from . import agro, change, cropcheck, crops, hls, neighbourhood, power, stress
 from .advisor import build_advisories
 from .db import connect, init_db
 
@@ -286,6 +286,15 @@ async def vegetation(req: VegetationRequest):
         weather = None  # weather unavailable: still compare greenness, just without the weather check
     rec["season_check"] = stress.season_check(rec["seasons"], weather)
     return rec
+
+
+@app.post("/api/neighbourhood")
+async def neighbourhood_crops(req: VegetationRequest):
+    """Broad crop types on farmland within ~2 km of the field, each season since 2020 (NASA HLS + ESA WorldCover)."""
+    try:
+        return await run_in_threadpool(neighbourhood.neighbourhood, req.boundary)
+    except hls.HLSUnavailable as exc:
+        raise HTTPException(503, str(exc))
 
 
 @app.post("/api/zones")

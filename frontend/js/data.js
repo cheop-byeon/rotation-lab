@@ -1,6 +1,6 @@
 import { api } from './api.js';
 import { createMap } from './map.js';
-import { renderCharts, tableFor, renderVegCharts, renderTrendChart, renderChangeChart } from './charts.js';
+import { renderCharts, tableFor, renderVegCharts, renderTrendChart, renderChangeChart, renderAroundChart } from './charts.js';
 import { createDrawer, centroid } from './draw.js';
 
 const $ = (id) => document.getElementById(id);
@@ -81,7 +81,7 @@ async function analyze() {
     const d = await api.analysis(f);
     state.analysis = d;
     renderHero(d, f); renderTelemetry(d); renderAdvisories(d); renderCharts(d); renderTable(); renderSuitability(d); renderSeasons(d); renderProvenance(d, f);
-    renderSatellite(f, d); renderChange(f); renderCropCheck(f);
+    renderSatellite(f, d); renderChange(f); renderCropCheck(f); renderAround(f);
     await rankPlans();
     settleHash();
     const src = { live: 'live from NASA POWER', cache: 'from local cache', 'stale-cache': 'from an older cache (NASA POWER unreachable)', snapshot: 'from the offline snapshot' }[d.provenance.delivery];
@@ -321,6 +321,43 @@ function finishBoundary() {
 
 const HINT_LABEL = { grass: 'Grass / ley', winter_crop: 'Autumn-sown', spring_crop: 'Spring-sown', late_crop: 'Late crop',
   bare: 'Bare / failed', unclear: 'Unclear', unknown: 'Too cloudy', unavailable: 'n/a (tropics)' };
+
+const AROUND_COLOUR = { grass: '#2fa477', winter_crop: '#2e98c4', spring_crop: '#c8801f', late_crop: '#9d5bdb', bare: '#6b7684', unclear: '#4B5563' };
+const AROUND_NAME = { grass: 'Grass / ley', winter_crop: 'Autumn-sown', spring_crop: 'Spring-sown', late_crop: 'Late crop', bare: 'Bare / failed', unclear: 'Unclear' };
+let aroundMap;
+async function renderAround(f) {
+  const key = JSON.stringify(f.boundary); state.aroundFor = key;
+  if (!f.boundary) { $('around-status').innerHTML = '<div class="empty-state">Draw or load a field boundary to read the area around it.</div>'; return; }
+  $('around-status').innerHTML = '<div class="mission-status busy"><span class="scanner"></span><span>Reading every HLS image of a 4 km square around the field (first time about a minute)…</span></div>';
+  try {
+    const d = await api.neighbourhood(f.boundary);
+    if (state.aroundFor !== key) return;
+    if (d.status !== 'ok') { $('around-status').innerHTML = `<div class="empty-state">${esc(d.reason || '')}</div>`; return; }
+    const ch = d.change;
+    const shift = !ch ? 'Too few usable seasons to test for a shift.'
+      : ch.notable.length ? `Consistent shift over ${esc(ch.seasons)}: ${ch.notable.map((k) => `${AROUND_NAME[k]} ${ch.classes[k].pp_per_year > 0 ? '+' : ''}${ch.classes[k].pp_per_year} points a year (p = ${ch.classes[k].p_value})`).join('; ')}.`
+      : `No consistent shift in any crop type over ${esc(ch.seasons)} (Mann–Kendall p ≥ 0.1 for all).`;
+    $('around-status').innerHTML = `<p style="margin:0 0 10px">${d.farmland_ha} ha of farmland around the field · ${d.images} images · tile ${esc(d.tile)} · ${esc(d.delivery)}. ${shift}</p>
+      <div class="legend">${Object.keys(AROUND_COLOUR).map((k) => `<span><i style="background:${AROUND_COLOUR[k]}"></i>${AROUND_NAME[k]}</span>`).join('')}</div>`;
+    renderAroundChart(d, AROUND_COLOUR, AROUND_NAME);
+    const pct = (v) => (v == null ? '—' : `${Math.round(100 * v)}%`);
+    $('around-table').innerHTML = `<table><thead><tr><th>Season</th><th class="num">Farmland classified</th>${Object.keys(AROUND_NAME).map((k) => `<th class="num">${AROUND_NAME[k]}</th>`).join('')}</tr></thead><tbody>
+      ${d.seasons.map((s) => `<tr><td><b>${esc(s.label)}</b>${s.usable ? '' : ' <span class="muted">(too cloudy)</span>'}</td><td class="num">${pct(s.classified_share)}</td>
+        ${Object.keys(AROUND_NAME).map((k) => `<td class="num">${pct(s.shares[k])}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+    $('around-method').textContent = `${d.method} ${d.attribution}`;
+    if (aroundMap) aroundMap.remove();
+    aroundMap = L.map('around-map', { zoomControl: false, attributionControl: false, scrollWheelZoom: false });
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 }).addTo(aroundMap);
+    const [w, s, e, n] = d.bbox;
+    aroundMap.fitBounds([[s, w], [n, e]]);
+    if (d.map.cells) L.geoJSON(d.map.cells, { style: (ft) => ({ stroke: false, fillColor: AROUND_COLOUR[ft.properties.class], fillOpacity: 0.75 }) })
+      .bindTooltip((l) => `${AROUND_NAME[l.feature.properties.class]} · ${d.map.season}`).addTo(aroundMap);
+    L.polygon(f.boundary.coordinates[0].map(([x, y]) => [y, x]), { color: '#FFFFFF', weight: 2.5, fill: false, interactive: false }).addTo(aroundMap);
+  } catch (e) {
+    if (state.aroundFor === key) $('around-status').innerHTML = `<div class="empty-state">Could not read the area around the field: ${esc(e.message)}</div>`;
+  }
+  settleHash();
+}
 
 async function renderCropCheck(f) {
   const sel = $('cc-crop');

@@ -170,7 +170,7 @@ async function analyze(f) {
     $('loading').textContent = '';
     $('results').hidden = false;
     renderNow(d); renderTodo(d); renderSeason(d); renderCrops(d); renderPrioChips(); await renderPlan(); renderSource(d);
-    renderSpace(f); renderChanged(f); renderCropCheck(f);
+    renderSpace(f); renderChanged(f); renderCropCheck(f); renderAround(f);
   } catch (e) {
     $('loading').className = 'loading error';
     $('loading').textContent = t('app.failed', { error: e.message });
@@ -293,6 +293,42 @@ function renderCrops(d) {
       ${list.length ? `<div class="crop-grid">${list.map((s) => `<div class="crop"><span class="em" aria-hidden="true">${ICON[s.name] || '🌱'}</span>
         <div><b>${esc(cropName(s.name))}</b><span>${esc(cropReason(s))}</span></div></div>`).join('')}</div>` : `<p class="muted">${esc(t('crops.none'))}</p>`}</div>`;
   }).join('');
+}
+
+// ------------------------------------------------------------------ what's grown around you (satellite, ~2 km)
+const AROUND_COLOUR = { grass: '#2fa477', winter_crop: '#2e98c4', spring_crop: '#c8801f', late_crop: '#9d5bdb', bare: '#8a8f98', unclear: '#B8B3A6' };
+let aroundMap;
+async function renderAround(f) {
+  const box = $('around'), key = JSON.stringify(f.boundary || [f.lat, f.lon]);
+  state.aroundFor = key;
+  if (!f.boundary) { box.innerHTML = `<p class="muted">${esc(t('around.noOutline'))}</p>`; return; }
+  box.innerHTML = `<p class="loading">${esc(t('around.loading'))}</p>`;
+  try {
+    const d = await api.neighbourhood(f.boundary);
+    if (state.aroundFor !== key) return;
+    if (d.status !== 'ok') { box.innerHTML = `<p class="muted">${esc(d.reason || '')}</p>`; return; }
+    const use = d.seasons.filter((s) => s.usable), last = use[use.length - 1];
+    const name = (k) => t(`space.hint.${k}`).toLowerCase();
+    // Order, not percentages: a check against official statistics showed the order holds better than the numbers.
+    const ranked = Object.entries(last?.shares || {}).filter(([k, v]) => k !== 'unclear' && k !== 'bare' && v >= 0.1).sort((a, b) => b[1] - a[1]).map(([k]) => k);
+    const lines = [];
+    if (ranked.length) lines.push(t(ranked.length > 1 ? 'around.mostly2' : 'around.mostly1', { season: last.label, ha: Math.round(d.farmland_ha), a: name(ranked[0]), b: ranked[1] ? name(ranked[1]) : '' }));
+    if (!d.change) lines.push(t('around.tooFew'));
+    else if (!d.change.notable.length) lines.push(t('around.noShift', { range: d.change.seasons }));
+    else d.change.notable.forEach((k) => lines.push(t(d.change.classes[k].pp_per_year > 0 ? 'around.more' : 'around.less', { type: name(k), range: d.change.seasons })));
+    const legend = Object.keys(AROUND_COLOUR).map((k) => `<span><i style="background:${AROUND_COLOUR[k]}"></i>${esc(t(`space.hint.${k}`))}</span>`).join('');
+    box.innerHTML = `<div id="around-map" class="zones-map"></div><span class="cal-legend zone-key">${legend}</span>
+      <ul class="changes">${lines.map((x) => `<li>${esc(x)}</li>`).join('')}</ul><p class="muted small">${esc(t('around.note', { season: d.map.season }))}</p>`;
+    if (aroundMap) aroundMap.remove();
+    aroundMap = L.map('around-map', { zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false, doubleClickZoom: false, touchZoom: false });
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 }).addTo(aroundMap);
+    const [w, s, e, n] = d.bbox;
+    aroundMap.fitBounds([[s, w], [n, e]]);  // set the view before adding vector layers
+    if (d.map.cells) L.geoJSON(d.map.cells, { style: (ft) => ({ stroke: false, fillColor: AROUND_COLOUR[ft.properties.class], fillOpacity: 0.7 }) }).addTo(aroundMap);
+    L.polygon(f.boundary.coordinates[0].map(([x, y]) => [y, x]), { color: '#FFFDF8', weight: 3, fill: false, interactive: false }).addTo(aroundMap);
+  } catch (e) {
+    if (state.aroundFor === key) box.innerHTML = `<p class="loading error">${esc(t('around.failed', { error: e.message }))}</p>`;
+  }
 }
 
 // ------------------------------------------------------------------ what has changed here (since the 1990s)

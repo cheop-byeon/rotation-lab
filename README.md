@@ -249,6 +249,11 @@ The GIBS layers are for visual context. The numerical analysis uses NASA POWER o
   The zones are **uncalibrated**: satellite greenness, not measured yield. Both views say so.
   Inspired by DigiFarm's productivity zones, which are calibrated on Norwegian yield data; ours are not.
   **Download:** both views export the zone map as GeoJSON: one 30 m square per pixel with `zone` and `zone_id` (1 weaker, 2 average, 3 stronger, 0 edge), relative EVI and consistency, ready to load into farm-machinery or GIS software for variable-rate planning.
+- **What's grown around you (within ~2 km):** every 30 m farmland pixel in a 4 × 4 km square around the field gets the same rule-based crop hint as the field (grass/ley, autumn-sown, spring-sown, late crop, bare, unclear), each season since 2020.
+  Farmland = **ESA WorldCover 2021** cropland or grassland (leys are often mapped as grassland; majority of the 10 m cells inside each 30 m pixel), via Planetary Computer, CC BY 4.0. The field itself is left out. One MGRS tile is used so pixels line up; the vectorised rules give the same answer as the field's own hints (0 mismatches on 12,000 test pixels).
+  A shift is mentioned only when a share trends the same way across the seasons (Theil–Sen, Mann–Kendall p < 0.1, ≥ 5 points in total); around both demo fields there is none, and the first two vs last two seasons comparison it replaced had reported noise as shifts.
+  **Checked against Statistics Norway** (table 06462, Stjørdal municipality, 2020–2025: cereals and oilseeds 52%, grass and leys 46%, potatoes and green fodder ~2%): around the demo field we read spring-sown 38–51%, grass 10–39%, late crops 10–28%, unclear 6–16%. Spring-sown crops match within ~5–15 points and the order is right; **grass and leys are undercounted by ~20 points**, mostly read as late or unclear crops (northern leys green up late and dip after each cut). Around Orosháza single seasons swing by up to ~40 points (e.g. the 2022 drought). Not checked for Hungary.
+  So the field view gives the order of crop types, not percentages, plus the shift result and this caveat; the data view shows the numbers, map, chart and the check. First read ~80 s per field, then cached; both demo areas are in the offline snapshots.
 - **Season check (crop stress, season level):** was a season clearly less green than the field's *other seasons with the same likely crop*, and did its weather stand out?
   Each season's season-long EVI (see the trend below) is compared with the median of the field's other seasons with the same crop hint (at least 2). 10% or more below is flagged. Seasons with a cloud gap, an unclear crop or too few same-crop seasons are listed as not judged, with the reason.
   For each season, the NASA POWER weather of that season is ranked against all ~10 seasons on record. Once the growing months are over (November in the north, May in the south), the current season is included too, marked "season so far". A factor "stands out" only when the season is among the 2 most extreme *and* clearly differs from the median: longest dry spell (+3 days), low rain (≤ 80%), high rain (≥ 125%), hot days (+2), cool season (GDD5 ≤ 92%), late spring frost (+7 days), dry or wet root zone (±0.05).
@@ -299,6 +304,7 @@ backend/app/
   power.py           NASA POWER client: daily + climatology, retries, SQLite cache, snapshot fallback
   agro.py            agroclimatic engine: ET₀, GDD, frost dates, seasons, anomalies, soil-moisture percentiles, splice detection
   crops.py           crop catalog, crop-season simulation/suitability, rotation ranking
+  neighbourhood.py   what's grown around you: crop hints for every farmland pixel within ~2 km (HLS + ESA WorldCover)
   cropcheck.py       is this crop still a good choice: one crop through every season since 1981, incl. blight weather
   change.py          then versus now: 1990s vs the last ten seasons from the full NASA POWER record
   stress.py          season check: weak seasons vs same-crop seasons, and the weather that stood out
@@ -315,6 +321,7 @@ scripts/snapshot.py  save offline copies of POWER data
 | `GET /api/analysis?lat&lon&soil&drainage&irrigation&previous_crop` | Full field analysis |
 | `POST /api/rotations/rank` | Rank rotations (optionally with the climate of `lat`/`lon`) |
 | `GET /api/layers` | NASA GIBS layer configuration |
+| `POST /api/neighbourhood` `{boundary}` | Broad crop types on farmland within ~2 km, each season since 2020, with a map of the latest season |
 | `GET /api/crop-check?lat&lon&crop` | One crop through every season since 1981: ripening, heat, water, blight weather, then versus now |
 | `GET /api/change?lat&lon` | Then (1991–2000) versus now (last ten seasons) from the NASA POWER record since 1981 |
 | `POST /api/vegetation` `{boundary, seasons}` | NASA HLS NDVI/NDMI/EVI record for a field outline (GeoJSON Polygon); `seasons` optional (default: all since 2020); includes the productivity `trend` and the `season_check` (joined with NASA POWER weather) |

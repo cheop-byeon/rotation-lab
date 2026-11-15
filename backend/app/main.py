@@ -291,6 +291,12 @@ def area_detail(code: str):
     return d
 
 
+@app.get("/api/parcel")
+async def property_parcel(lat: float = Query(ge=-60, le=75), lon: float = Query(ge=-180, le=180)):
+    """Outline of the property parcel under a point (Norway, Kartverket), usable as a starting field outline."""
+    return await publicdata.parcel(lat, lon)
+
+
 @app.get("/api/soil")
 async def soil_estimate(lat: float = Query(ge=-60, le=75), lon: float = Query(ge=-180, le=180)):
     """Soil texture estimate from ISRIC SoilGrids (250 m model) for the field's location."""

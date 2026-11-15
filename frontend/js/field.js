@@ -112,10 +112,10 @@ async function soilHint(lat, lon) {
 function renderField() {
   const f = state.field;
   $('field-name').textContent = f ? `${f.name} · ${f.lat.toFixed(2)}, ${f.lon.toFixed(2)}` : '—';
-  $('demo-note').hidden = !f?.demo;
+  $('demo-note').hidden = !f?.demo && !f?.from_records;
   // Demo fields: offer any other ones so each can be shown without setup.
   const others = state.fields.filter((d) => d.demo && d.id !== f?.id);
-  $('demo-note').innerHTML = esc(t('field.demoNote')) + (others.length ? ` ${esc(t('field.otherDemo'))} ${others.map((d) =>
+  $('demo-note').innerHTML = f?.from_records ? esc(t('field.fromRecords')) : esc(t('field.demoNote')) + (others.length ? ` ${esc(t('field.otherDemo'))} ${others.map((d) =>
     `<button type="button" class="link-btn" data-demo="${d.id}">${esc(d.name)}</button>`).join(', ')}` : '');
   $('demo-note').querySelectorAll('[data-demo]').forEach((b) => { b.onclick = () => switchField(+b.dataset.demo); });
   $('choose-btn').textContent = t(f && !f.demo ? 'field.change' : 'field.choose');
@@ -746,13 +746,35 @@ function wire() {
   $('outline-clear').onclick = () => { state.drawer.clear(); state.pending.boundary = null; };
 }
 
+// Reported crop names (Landbruksdirektoratet) → the app's crop catalogue, for the last crop on an unsaved field.
+const REPORTED_TO_CATALOG = { Barley: 'Barley', Oats: 'Oats', 'Spring wheat': 'Spring wheat', 'Winter wheat': 'Spring wheat',
+  'Grass ley': 'Grass–clover ley', 'Other fodder': 'Grass–clover ley', Potato: 'Potato', Oilseed: 'Oilseed rape', 'Peas and beans': 'Field pea' };
+
+async function placeField(lat, lon, name) {
+  const [parcel, soil, farm] = await Promise.all([api.parcel(lat, lon), api.soil(lat, lon), api.farmCrops(lat, lon)].map((p) => p.catch(() => null)));
+  const years = farm?.status === 'ok' && farm.farms.length === 1 ? farm.farms[0].years : [];
+  const last = years[years.length - 1];
+  const centre = parcel?.status === 'ok' ? centroid(parcel.boundary) : null;
+  return {
+    id: null, demo: 0, name: t('field.nearName', { place: name || `${lat.toFixed(3)}, ${lon.toFixed(3)}` }),
+    lat: centre ? +centre[0].toFixed(4) : lat, lon: centre ? +centre[1].toFixed(4) : lon,  // centroid() is [lat, lon]
+    soil: soil?.status === 'ok' ? soil.soil : 'Unknown', drainage: 'Unknown', irrigation: 'Unknown',
+    previous_crop: REPORTED_TO_CATALOG[last?.main] || 'Barley',
+    boundary: parcel?.status === 'ok' ? parcel.boundary : null, notes: '', from_records: true,
+  };
+}
+
 async function boot() {
   applyText(); wire();
   try {
     const [cat, fields] = await Promise.all([api.crops(), api.fields()]);
     state.catalog = cat.crops; state.fields = fields;
-    const want = Number(new URLSearchParams(location.search).get('field'));  // ?field=<id> opens that field (handy for demos)
-    state.field = fields.find((f) => f.id === want) || fields.find((f) => !f.demo) || fields[0] || null;
+    const qs = new URLSearchParams(location.search);
+    const want = Number(qs.get('field'));  // ?field=<id> opens that field (handy for demos)
+    // ?lat=&lon=[&name=] (e.g. a farm dot in the area view) opens an unsaved field at that spot, filled from public records.
+    const lat = Number(qs.get('lat')), lon = Number(qs.get('lon'));
+    state.field = (qs.has('lat') && Number.isFinite(lat) && Number.isFinite(lon) ? await placeField(lat, lon, qs.get('name')) : null)
+      || fields.find((f) => f.id === want) || fields.find((f) => !f.demo) || fields[0] || null;
     renderField();
     if (state.field) analyze(state.field); else openChooser();
   } catch (e) {

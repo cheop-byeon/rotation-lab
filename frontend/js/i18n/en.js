@@ -20,6 +20,8 @@ export default {
     demoNote: 'This is a demo field: a real field near Stjørdal, filled in from public records (outline from Kartverket, soil estimated by SoilGrids, crops its farm reported). Drainage and irrigation are not known. Choose your own field to see its records.',
     soilEstimate: 'Estimate for this spot: {soil} ({sand}% sand, {clay}% clay; ISRIC SoilGrids, a 250 m model, not measured). Change it if you know better.',
     otherDemo: 'Other demo field:',
+    nearName: 'Farm land in {place}',
+    fromRecords: 'Opened from public records: the outline is the property parcel at this spot (Kartverket; it may include a farmyard, forest or more than one field), soil is the SoilGrids estimate, and the last crop is what this farm reported. Change any of it with “Choose my field”.',
     choose: 'Choose my field', change: 'Change field', close: 'Close',
     mapHint: 'Tap your field on the map, or use your location.',
     useLocation: 'Use my location', locating: 'Finding your location…', locationFailed: 'Could not find your location.',

@@ -90,9 +90,21 @@ function renderField() {
   const f = state.field;
   $('field-name').textContent = f ? `${f.name} · ${f.lat.toFixed(2)}, ${f.lon.toFixed(2)}` : '—';
   $('demo-note').hidden = !f?.demo;
-  $('demo-note').textContent = t('field.demoNote');
+  // Demo fields: offer the other ones (e.g. Norway and Hungary) so each can be shown without setup.
+  const others = state.fields.filter((d) => d.demo && d.id !== f?.id);
+  $('demo-note').innerHTML = esc(t('field.demoNote')) + (others.length ? ` ${esc(t('field.otherDemo'))} ${others.map((d) =>
+    `<button type="button" class="link-btn" data-demo="${d.id}">${esc(d.name)}</button>`).join(', ')}` : '');
+  $('demo-note').querySelectorAll('[data-demo]').forEach((b) => { b.onclick = () => switchField(+b.dataset.demo); });
   $('choose-btn').textContent = t(f && !f.demo ? 'field.change' : 'field.choose');
   if (f) showMini(f);
+}
+
+function switchField(id) {
+  const f = state.fields.find((x) => x.id === id);
+  if (!f) return;
+  state.field = f; state.mine = null; state.mineEdited = false;
+  history.replaceState(null, '', `?field=${id}`);
+  renderField(); analyze(f);
 }
 
 function openChooser(startDrawing = false) {
@@ -393,40 +405,39 @@ function greennessChart(veg) {
     <div class="cal-legend"><span><i style="background:#2E7D32"></i>${esc(t('space.thisYear', { y: seasons[seasons.length - 1]?.label ?? '' }))}</span><span><i style="background:#B7BFB2"></i>${esc(t('space.earlier'))}</span></div>`;
 }
 
-function spaceInsight(veg) {
-  const usable = veg.seasons.filter((s) => s.peak_ndvi != null && s.clear_images >= 8);
-  if (usable.length < 2) return [];
+// Season check: a season clearly less green than the field's other seasons with the same likely crop, and its weather.
+function seasonCheckNotes(veg) {
+  const sc = veg.season_check;
+  if (!sc) return [];
   const out = [];
-  const best = usable.reduce((a, b) => (b.peak_ndvi > a.peak_ndvi ? b : a));
-  const worst = usable.reduce((a, b) => (b.peak_ndvi < a.peak_ndvi ? b : a));
-  if (best.peak_ndvi - worst.peak_ndvi < 0.08) { // within measurement noise: don't single out a season
-    out.push(t('space.similar', { lo: worst.peak_ndvi.toFixed(2), hi: best.peak_ndvi.toFixed(2) }), t('space.crops'));
-    return out;
+  for (const r of sc.seasons.filter((x) => x.status === 'lower')) {
+    out.push(t('check.lower', { y: r.label, pct: Math.round(-r.diff_pct), crop: t(`space.hint.${r.crop}`).toLowerCase() }));
+    const f = (r.weather || []).map((w) => t(`check.f.${w.code}`, { r: t(`check.rank${w.rank}`), of: w.of, v: w.value, m: w.normal }));
+    out.push(r.weather == null ? t('check.wxUnknown') : f.length ? t('check.wx', { list: f.join('; ') }) : t('check.wxNone'));
   }
-  out.push(t('space.greenest', { y: best.label, v: best.peak_ndvi.toFixed(2), d: fmtDate(best.peak_date) }));
-  out.push(t('space.least', { y: worst.label, v: worst.peak_ndvi.toFixed(2) }));
-  const wx = Object.fromEntries((state.analysis?.seasons || []).map((s) => [s.label, s]));
-  const pool = usable.map((s) => wx[s.label]).filter(Boolean);
-  const w = wx[worst.label];
-  if (w && pool.length >= 2) {
-    if (w.longest_dry_spell === Math.max(...pool.map((s) => s.longest_dry_spell))) out.push(t('space.leastDry', { y: worst.label, days: w.longest_dry_spell }));
-    else if (w.season_rain_mm === Math.max(...pool.map((s) => s.season_rain_mm))) out.push(t('space.leastWet', { y: worst.label, mm: w.season_rain_mm }));
-    else out.push(t('space.leastNormal', { y: worst.label }));
-  }
-  out.push(t('space.crops'));
+  if (!out.length) out.push(sc.judged >= 2 ? t('check.none', { n: sc.judged }) : t('check.cannot'));
   return out;
 }
 
 // What the curve shape suggests, compared with what the grower entered (an observation, not a correction).
-const HINT_FOR_FAMILY = { Forage: 'grass', Solanaceae: 'late_crop', 'Warm cereal': 'late_crop' };
+// Cereals and oilseed rape can be sown in spring or autumn (e.g. winter barley), so either pattern fits them.
+const HINT_FOR_FAMILY = { Forage: ['grass'], Solanaceae: ['late_crop'], 'Warm cereal': ['late_crop'], Cereal: ['spring_crop', 'winter_crop'], Brassica: ['spring_crop', 'winter_crop'] };
 function trendNote(veg) {
   const tr = veg.trend;
   if (!tr || !tr.seasons.length) return [];
   const range = `${tr.seasons[0].season}–${tr.seasons[tr.seasons.length - 1].season}`;
-  if (tr.status !== 'ok') return [t('trend.tooFew', { n: tr.seasons.length, need: tr.min_seasons })];
+  if (tr.status === 'too_few') return [t('trend.tooFew', { n: tr.seasons.length, need: tr.min_seasons })];
+  if (tr.status === 'mixed_crops') {
+    const sc = tr.same_crop;
+    if (!sc) return [t('trend.mixed')];
+    const crop = t(`space.hint.${sc.crop}`).toLowerCase();
+    if (sc.direction === 'none') return [t('trend.sameNone', { crop, n: sc.n })];
+    return [t(sc.direction === 'rising' ? 'trend.sameRising' : 'trend.sameFalling', { crop, n: sc.n, pct: Math.abs(sc.pct_per_year) })];
+  }
   if (tr.direction === 'none') return [t('trend.none', { range })];
   return [t(tr.direction === 'rising' ? 'trend.rising' : 'trend.falling', { range, pct: Math.abs(tr.pct_per_year) })];
 }
+
 
 function hintNotes(veg) {
   const known = veg.seasons.filter((s) => ['grass', 'winter_crop', 'spring_crop', 'late_crop', 'bare'].includes(s.crop_hint?.type));
@@ -436,9 +447,9 @@ function hintNotes(veg) {
   }
   const last = veg.seasons[veg.seasons.length - 1], f = state.field;
   const fam = state.catalog.find((c) => c.name === f?.previous_crop)?.family;
-  const expected = fam ? (HINT_FOR_FAMILY[fam] || 'spring_crop') : null;
+  const expected = fam ? (HINT_FOR_FAMILY[fam] || ['spring_crop']) : null;
   const seen = last?.crop_hint?.type;
-  if (expected && ['grass', 'spring_crop', 'late_crop', 'winter_crop'].includes(seen) && seen !== expected) {
+  if (expected && ['grass', 'spring_crop', 'late_crop', 'winter_crop'].includes(seen) && !expected.includes(seen)) {
     out.push(t('space.mismatch', { y: last.label, type: t(`space.hint.${seen}`).toLowerCase(), crop: cropName(f.previous_crop).toLowerCase() }));
   }
   return out;
@@ -466,7 +477,7 @@ async function renderSpace(f) {
     const T = STR.space.table;
     setTimeout(() => renderZones(f.boundary, key), 0);
     box.innerHTML = `<p class="small muted">${esc(t('outline.set', { ha: veg.area_ha.toFixed(1) }))}</p>${greennessChart(veg)}
-      <ul class="season-facts">${[...hintNotes(veg), ...trendNote(veg), ...spaceInsight(veg)].map((x) => `<li>${esc(x)}</li>`).join('')}</ul>
+      <ul class="season-facts">${[...hintNotes(veg), ...trendNote(veg), ...seasonCheckNotes(veg)].map((x) => `<li>${esc(x)}</li>`).join('')}</ul>
       <div class="table-wrap"><table class="simple"><thead><tr><th>${esc(T.year)}</th><th>${esc(T.likely)}</th><th>${esc(T.up)}</th><th>${esc(T.peak)}</th><th>${esc(T.value)}</th><th>${esc(T.clear)}</th></tr></thead><tbody>${rows}</tbody></table></div>
       <h3 class="sub-h">${esc(t('zones.title'))}</h3>
       <div id="zones-map" class="zones-map"></div><p id="zones-text"></p>
@@ -561,7 +572,8 @@ async function boot() {
   try {
     const [cat, fields] = await Promise.all([api.crops(), api.fields()]);
     state.catalog = cat.crops; state.fields = fields;
-    state.field = fields.find((f) => !f.demo) || fields[0] || null;
+    const want = Number(new URLSearchParams(location.search).get('field'));  // ?field=<id> opens that field (handy for demos)
+    state.field = fields.find((f) => f.id === want) || fields.find((f) => !f.demo) || fields[0] || null;
     renderField();
     if (state.field) analyze(state.field); else openChooser();
   } catch (e) {

@@ -19,6 +19,18 @@ DEMO_FIELD = {
                                                       [10.965836, 63.468956], [10.965965, 63.469551], [10.966523, 63.470528]]]},
 }
 
+# Second demo field: rainfed arable land near Orosháza (Békés county, Hungary). The outline is a rectangle drawn
+# inside a real field on Esri imagery; farm details are illustrative. It shows the season check catching the
+# 2022 drought from NASA data alone.
+DEMO_FIELD_HU = {
+    "name": "Orosháza 01", "lat": 46.6045, "lon": 20.6571, "soil": "Loamy", "drainage": "Good", "irrigation": "No",
+    "previous_crop": "Barley",
+    "notes": "Demo field, Békés county, Hungary. Real location; outline drawn inside a real field; illustrative farm details, not a real farm.",
+    "boundary": {"type": "Polygon", "coordinates": [[[20.655155, 46.605582], [20.659125, 46.605582], [20.659125, 46.603371],
+                                                      [20.655155, 46.603371], [20.655155, 46.605582]]]},
+}
+DEMO_FIELDS = [DEMO_FIELD, DEMO_FIELD_HU]
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS power_cache (
     key TEXT PRIMARY KEY,
@@ -67,6 +79,12 @@ def init_db() -> None:
             # Move an untouched older demo field (the point on Værnes airport) to the outlined grass field.
             con.execute("UPDATE fields SET name=?, lat=?, lon=?, soil=?, drainage=?, irrigation=?, previous_crop=?, notes=?, boundary=? "
                         "WHERE demo = 1 AND boundary IS NULL AND lat = 63.46 AND lon = 10.92", values)
+        # Later demo fields are added once to existing databases too.
+        for d in DEMO_FIELDS[1:]:
+            if not con.execute("SELECT 1 FROM fields WHERE demo = 1 AND name = ?", (d["name"],)).fetchone():
+                con.execute("INSERT INTO fields(name, lat, lon, soil, drainage, irrigation, previous_crop, notes, boundary, demo) "
+                            "VALUES (?,?,?,?,?,?,?,?,?,1)", (d["name"], d["lat"], d["lon"], d["soil"], d["drainage"], d["irrigation"],
+                                                              d["previous_crop"], d["notes"], json.dumps(d["boundary"])))
 
 
 @contextmanager

@@ -84,18 +84,23 @@ def test_crop_hint_honest_when_unsure():
 def test_demo_field_works_offline_from_snapshots(monkeypatch):
     """A fresh install with no internet still shows the demo field's weather and satellite record."""
     from app import power
-    from app.db import DEMO_FIELD
+    from app.db import DEMO_FIELDS
     monkeypatch.setattr(power, "DAILY_URL", "https://power.invalid/api")
     monkeypatch.setattr(power, "CLIMATOLOGY_URL", "https://power.invalid/api")
     monkeypatch.setattr(hls, "STAC_SEARCH", "https://stac.invalid/search")
     with TestClient(app) as cl:
-        a = cl.get("/api/analysis", params={"lat": DEMO_FIELD["lat"], "lon": DEMO_FIELD["lon"]})
-        assert a.status_code == 200 and a.json()["provenance"]["delivery"] in ("snapshot", "stale-cache", "cache")
-        v = cl.post("/api/vegetation", json={"boundary": DEMO_FIELD["boundary"]})
-        assert v.status_code == 200 and v.json()["delivery"] in ("snapshot", "offline-cache")
-        assert v.json()["stats"]["clear_images"] > 50
-        z = cl.post("/api/zones", json={"boundary": DEMO_FIELD["boundary"]})
-        assert z.status_code == 200 and z.json()["status"] == "ok" and z.json()["delivery"] in ("snapshot", "offline-cache")
+        for f in DEMO_FIELDS:
+            a = cl.get("/api/analysis", params={"lat": f["lat"], "lon": f["lon"]})
+            assert a.status_code == 200 and a.json()["provenance"]["delivery"] in ("snapshot", "stale-cache", "cache")
+            v = cl.post("/api/vegetation", json={"boundary": f["boundary"]})
+            assert v.status_code == 200 and v.json()["delivery"] in ("snapshot", "offline-cache")
+            assert v.json()["stats"]["clear_images"] > 50
+            assert v.json()["season_check"]["weather_seasons"] >= 10  # weather joined offline too
+            z = cl.post("/api/zones", json={"boundary": f["boundary"]})
+            assert z.status_code == 200 and z.json()["status"] in ("ok", "uniform") and z.json()["delivery"] in ("snapshot", "offline-cache")
+        # the Hungarian demo shows the 2022 drought caught from NASA data alone
+        sc = cl.post("/api/vegetation", json={"boundary": DEMO_FIELDS[1]["boundary"]}).json()["season_check"]
+        assert "2022" in sc["flagged"]
 
 
 def _px_obs(grid, season_dates, tile="T32VNR"):

@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field, field_validator
 
 import json
 
-from . import agro, crops, hls, power
+from . import agro, crops, hls, power, stress
 from .advisor import build_advisories
 from .db import connect, init_db
 
@@ -252,9 +252,17 @@ async def rank(req: RankRequest):
 async def vegetation(req: VegetationRequest):
     """NDVI / NDMI record for a field outline from NASA HLS (30 m), clouds masked, by season."""
     try:
-        return await run_in_threadpool(hls.field_record, req.boundary, req.seasons)
+        rec = await run_in_threadpool(hls.field_record, req.boundary, req.seasons)
     except hls.HLSUnavailable as exc:
         raise HTTPException(503, str(exc))
+    # Season check: join each satellite season with the NASA POWER weather of the same season.
+    try:
+        c, _ = await _climate(rec["centroid"]["lat"], rec["centroid"]["lon"])
+        weather = agro.season_summaries(c, include_current=True)
+    except HTTPException:
+        weather = None  # weather unavailable: still compare greenness, just without the weather check
+    rec["season_check"] = stress.season_check(rec["seasons"], weather)
+    return rec
 
 
 @app.post("/api/zones")

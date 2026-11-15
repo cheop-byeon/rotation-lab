@@ -18,7 +18,7 @@ import urllib.request
 from collections import defaultdict
 from pathlib import Path
 
-YEARS = range(2017, 2025)
+YEARS = range(2017, 2027)
 URL = "https://raw.githubusercontent.com/LandbruksdirektoratetGIT/opendata/main/datasets/produksjon-og-avlosertilskudd/{y}/dataset.csv"
 OUT = Path(__file__).resolve().parents[1] / "data" / "farm_crops.json.gz"
 
@@ -49,7 +49,7 @@ def main() -> None:
             if not areas:
                 continue
             history[r["orgnr"]][str(y)] = {k: round(v) for k, v in areas.items() if round(v) > 0}
-            base[r["orgnr"]] = f'{r["kommunenr"]}-{r["gaardsnummer"]}-{r["bruksnummer"]}'
+            base[r["orgnr"]] = f'{r["kommunenr"].zfill(4)}-{r["gaardsnummer"]}-{r["bruksnummer"]}'
         print(y, len(rows), "applications", file=sys.stderr)
     by_property = defaultdict(list)
     for org, years in history.items():

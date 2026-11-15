@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field, field_validator
 
 import json
 
-from . import agro, change, cropcheck, crops, hls, neighbourhood, power, publicdata, stress
+from . import agro, areas, change, cropcheck, crops, hls, neighbourhood, power, publicdata, stress
 from .advisor import build_advisories
 from .db import connect, init_db
 
@@ -276,6 +276,21 @@ async def crop_check(lat: float = Query(ge=-60, le=75), lon: float = Query(ge=-1
     return cropcheck.crop_then_now(agro.Climate(series), crop)
 
 
+@app.get("/api/areas")
+def area_list():
+    """Norwegian municipalities with farms (name, number of farms, arable area, centre) for the place search."""
+    return areas.index()
+
+
+@app.get("/api/areas/{code}")
+def area_detail(code: str):
+    """What farms in one municipality reported growing, 2017–2026, with consistent changes and farm dots."""
+    d = areas.area(code)
+    if d is None:
+        raise HTTPException(404, "No farming data for this municipality")
+    return d
+
+
 @app.get("/api/soil")
 async def soil_estimate(lat: float = Query(ge=-60, le=75), lon: float = Query(ge=-180, le=180)):
     """Soil texture estimate from ISRIC SoilGrids (250 m model) for the field's location."""
@@ -385,6 +400,14 @@ def delete_field(field_id: int):
 
 # ------------------------------------------------------------------ frontend
 @app.get("/", include_in_schema=False)
+def area_view(request: Request):
+    """Start page: farming in a municipality (search a place; farms as dots). Old field links still work."""
+    if any(k in request.query_params for k in ("field", "lat")):
+        return RedirectResponse(f"/field?{request.url.query}", status_code=307)
+    return FileResponse(FRONTEND / "area.html")
+
+
+@app.get("/field", include_in_schema=False)
 def field_view():
     """Field view: plain-language overview of one field."""
     return FileResponse(FRONTEND / "index.html")

@@ -177,3 +177,25 @@ footer { text-align: center; color: var(--ink-2); font-size: .85rem; padding: 0 
   .card { break-inside: avoid; box-shadow: none; }
   details.others { display: block; }
 }
+
+/* ---------------- area view */
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.find-row { display: flex; gap: 10px; }
+.find-row input { flex: 1; min-width: 0; min-height: 52px; padding: 10px 14px; border-radius: 14px; border: 2px solid var(--line); font: inherit; background: #fff; }
+.link-btn { background: none; border: none; padding: 0; color: var(--green); font: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; }
+.area-title { font-size: 1.8rem; margin: 22px 0 4px; }
+.area-lead { font-size: 1.1rem; margin: 0 0 16px; }
+.crop-bars { list-style: none; padding: 0; margin: 8px 0 12px; display: grid; gap: 10px; }
+.crop-bars li { display: grid; grid-template-columns: minmax(0, 11rem) 1fr auto; gap: 10px; align-items: center; }
+.crop-bars .bar-track { height: 14px; border-radius: 7px; background: var(--bg); overflow: hidden; }
+.crop-bars .bar-track i { display: block; height: 100%; border-radius: 7px; }
+.crop-bars .val { font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; }
+.crop-bars .trend { grid-column: 1 / -1; margin-top: -6px; font-size: .9rem; color: var(--ink-2); }
+.area-map { height: 360px; border-radius: 14px; overflow: hidden; background: #dfe6d8; }
+.map-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 10px 0 4px; font-size: .9rem; }
+.map-legend i { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
+.evidence summary { cursor: pointer; font-weight: 700; }
+.evidence table { border-collapse: collapse; font-size: .85rem; width: 100%; }
+.evidence th, .evidence td { padding: 4px 6px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+.evidence th:first-child, .evidence td:first-child { text-align: left; }
+@media (max-width: 520px) { .crop-bars li { grid-template-columns: minmax(0, 8rem) 1fr auto; } .area-map { height: 300px; } }

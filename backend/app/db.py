@@ -17,7 +17,7 @@ DB_PATH = Path(os.environ.get("ROTATION_LAB_DB", _default_db))
 # - outline: the property parcel from Kartverket's open property service (it follows the field's edges);
 # - soil: "Loamy", the ISRIC SoilGrids estimate for the location (loam, ~52% sand, 10% clay; a 250 m model);
 # - crops: not stored here; /api/farm-crops reads what the farm based on this property reported to
-#   Landbruksdirektoratet (one crop on all its arable land every year 2017–2024, so also this field's crop);
+#   Landbruksdirektoratet (one crop on all its arable land every year 2017–2026, so also this field's crop);
 # - drainage and irrigation: no public source reached, so left unknown rather than invented.
 # The farm is not named in the app.
 DEMO_FIELD = {

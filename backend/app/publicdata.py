@@ -171,5 +171,5 @@ async def farm_crops(lat: float, lon: float) -> dict:
     prop = {"kommunenummer": e["kommunenummer"], "matrikkel": e.get("matrikkelnummertekst")}
     if not farms:
         return {**base, "status": "no_farm", "property": prop, "delivery": delivery,
-                "message": "No farm reported this property as its base in 2017–2024. The land may be farmed from another property."}
+                "message": "No farm reported this property as its base in 2017–2026. The land may be farmed from another property."}
     return {**base, "status": "ok", "property": prop, "delivery": delivery, "farms": [{"years": _years(f)} for f in farms]}

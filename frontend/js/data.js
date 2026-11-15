@@ -54,7 +54,7 @@ function renderSaved() {
   const q = state.fieldId != null ? `?field=${state.fieldId}`
     : lat && lon ? `?${new URLSearchParams({ lat, lon, name: $('f-name').value })}` : '';
   history.replaceState(null, '', `${location.pathname}${q}${location.hash}`);
-  $('to-field').href = state.fieldId != null ? `/?field=${state.fieldId}` : '/';
+  $('to-field').href = state.fieldId != null ? `/field?field=${state.fieldId}` : '/field';
 }
 
 // Arriving from a field-view "See the evidence" link (/data?field=3#crops): scroll to that section once the

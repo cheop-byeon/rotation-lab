@@ -33,7 +33,10 @@ export function createMap(el, config, onPick, isDrawing = () => false) {
       marker = L.marker([lat, lon], { icon: reticle, draggable: true, keyboard: true, title: 'Field location' }).addTo(map);
       marker.on('dragend', () => { const p = marker.getLatLng(); onPick(+p.lat.toFixed(4), +wrapLon(p.lng).toFixed(4)); });
     } else marker.setLatLng([lat, lon]);
-    if (fly) map.flyTo([lat, lon], Math.max(map.getZoom(), 9), { duration: 1.2 });
+    if (!fly) return;
+    // A map on a hidden tab has no size, and animating it throws: jump there instead; it re-centres when shown.
+    if (map.getContainer().offsetWidth) map.flyTo([lat, lon], Math.max(map.getZoom(), 9), { duration: 1.2 });
+    else map.setView([lat, lon], Math.max(map.getZoom(), 9), { animate: false });
   }
   map.on('click', e => { if (isDrawing()) return; const lat = +e.latlng.lat.toFixed(4), lon = +wrapLon(e.latlng.lng).toFixed(4); setTarget(lat, lon, { fly: false }); onPick(lat, lon); });
   // POWER's met grid cell (0.5° × 0.625°) — shows the footprint the climate numbers represent.

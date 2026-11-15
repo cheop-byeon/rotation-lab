@@ -299,3 +299,15 @@ footer { border-top: 1px solid var(--line); padding: 26px clamp(16px, 3vw, 40px)
 /* choose other land (header) */
 .choose-land { color: var(--accent-ink); text-decoration: none; font-size: .84rem; font-weight: 600; padding: 6px 12px; border: 1px solid var(--accent); border-radius: 10px; white-space: nowrap; }
 .choose-land:hover { background: var(--panel-2); }
+
+/* evidence: the land shown (read-only), and the same four topics as the overview */
+.land-summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin: 18px 0 14px; }
+.land-name { font-size: clamp(1.4rem, 2.4vw, 1.9rem); margin: 0 0 4px; }
+.land-facts { margin: 0; color: var(--ink-2); font-size: .85rem; }
+.ev-tabs { position: sticky; top: 58px; z-index: 900; display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 4px; margin-bottom: 8px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; }
+.ev-tabs button { min-height: 40px; border: 0; border-radius: 9px; background: transparent; color: var(--ink-2); font: inherit; font-weight: 600; cursor: pointer; }
+.ev-tabs button[aria-selected="true"] { background: var(--accent); color: #fff; }
+.tab-sources > summary { cursor: pointer; font-weight: 600; color: var(--accent-ink); }
+.tab-sources .prov { margin-top: 14px; }
+.console-panel:has(form[hidden]) { padding-top: 10px; padding-bottom: 10px; }
+@media print { .ev-tabs { display: none; } [data-panel][hidden] { display: block !important; } }

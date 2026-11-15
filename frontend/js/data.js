@@ -1,7 +1,7 @@
 import { api } from './api.js';
 import { createMap } from './map.js';
 import { renderCharts, tableFor, renderVegCharts, renderTrendChart, renderChangeChart, renderAroundChart } from './charts.js';
-import { createDrawer, centroid } from './draw.js';
+import { createDrawer, centroid, areaHa } from './draw.js';
 import { spotFromUrl, spotQuery, fieldFromSpot, areaOf } from './records.js';
 
 const $ = (id) => document.getElementById(id);
@@ -31,7 +31,30 @@ function readForm() {
     previous_crop: $('f-previous').value, notes: '', boundary: state.boundary,
   };
 }
+// The land this page shows, read-only: editing happens in the overview ("Change field").
+function renderLandSummary(f) {
+  const bits = [f.boundary ? `${areaHa(f.boundary).toFixed(1)} ha` : 'no outline', `soil ${f.soil.toLowerCase()}`,
+    `drainage ${f.drainage.toLowerCase()}`, `irrigation ${f.irrigation.toLowerCase()}`, `last crop ${f.previous_crop}`,
+    `${(+f.lat).toFixed(3)}, ${(+f.lon).toFixed(3)}`];
+  $('land-h').textContent = f.name + (f.demo ? ' (example field)' : '');
+  $('land-facts').textContent = bits.join(' · ');
+}
+
+// One topic at a time, the same four as the overview. Maps and charts drawn while hidden re-fit when shown.
+const refits = new Map();  // Leaflet map -> bounds to fit (null: keep the view)
+function refitWhenShown(map, bounds, opts) { refits.set(map, [bounds, opts]); }
+function showTab(name) {
+  document.querySelectorAll('.ev-tabs [data-tab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === name)));
+  document.querySelectorAll('[data-panel]').forEach((el) => { el.hidden = el.dataset.panel !== name; });
+  for (const [map, [bounds, opts]] of refits) {
+    if (!map.getContainer().isConnected) { refits.delete(map); continue; }
+    if (map.getContainer().offsetWidth) { map.invalidateSize(); if (bounds) map.fitBounds(bounds, opts); else if (map === mapCtl?.map && $('f-lat').value) map.setView([+$('f-lat').value, +$('f-lon').value], Math.max(map.getZoom(), 9)); }
+  }
+}
+function tabOf(id) { return document.getElementById(id)?.closest('[data-panel]')?.dataset.panel; }
+
 function fillForm(f) {
+  renderLandSummary(f);
   $('f-name').value = f.name; $('f-lat').value = f.lat; $('f-lon').value = f.lon;
   $('f-soil').value = f.soil; $('f-drainage').value = f.drainage; $('f-irrigation').value = f.irrigation;
   $('f-previous').value = f.previous_crop;
@@ -64,6 +87,7 @@ function renderSaved() {
     : lat && lon ? `?${new URLSearchParams({ lat, lon, place: $('f-name').value })}` : '';
   history.replaceState(null, '', `${location.pathname}${q}${location.hash}`);
   $('to-field').href = state.fieldId != null ? `/field?field=${state.fieldId}` : state.spot ? `/field?${spotQuery(state.spot)}` : '/field';
+  $('change-land').href = `${$('to-field').getAttribute('href')}#change`;
 }
 
 // Arriving from a field-view "See the evidence" link (/data?field=3#crops): scroll to that section once the
@@ -72,6 +96,7 @@ let readerScrolled = false;
 ['wheel', 'touchmove', 'keydown', 'pointerdown'].forEach((ev) => addEventListener(ev, () => { readerScrolled = true; }, { once: true, passive: true }));
 function settleHash() {
   const el = location.hash && document.getElementById(location.hash.slice(1));
+  if (el && tabOf(el.id) && document.querySelector(`.ev-tabs [aria-selected="true"]`)?.dataset.tab !== tabOf(el.id)) showTab(tabOf(el.id));
   if (el && !readerScrolled) el.scrollIntoView({ block: 'start', behavior: 'instant' });
 }
 async function loadFields() { state.fields = await api.fields(); renderSaved(); }
@@ -215,6 +240,10 @@ function renderSeasons(d) {
 }
 
 function renderProvenance(d, f) {
+  renderProvenanceInto(d, f);
+  document.querySelectorAll('.prov-copy').forEach((el) => { el.innerHTML = $('prov').innerHTML; });  // "Sources for this tab"
+}
+function renderProvenanceInto(d, f) {
   const p = d.provenance;
   const missing = Object.entries(p.interior_missing_days).filter(([, n]) => n).map(([k, n]) => `${k}: ${n}`).join(', ') || 'none';
   $('prov').innerHTML = `
@@ -360,6 +389,7 @@ async function renderAround(f) {
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 }).addTo(aroundMap);
     const [w, s, e, n] = d.bbox;
     aroundMap.fitBounds([[s, w], [n, e]]);
+    refitWhenShown(aroundMap, [[s, w], [n, e]]);
     if (d.map.cells) L.geoJSON(d.map.cells, { style: (ft) => ({ stroke: false, fillColor: AROUND_COLOUR[ft.properties.class], fillOpacity: 0.75 }) })
       .bindTooltip((l) => `${AROUND_NAME[l.feature.properties.class]} · ${d.map.season}`).addTo(aroundMap);
     L.polygon(f.boundary.coordinates[0].map(([x, y]) => [y, x]), { color: '#FFFFFF', weight: 2.5, fill: false, interactive: false }).addTo(aroundMap);
@@ -500,6 +530,7 @@ async function renderZones(boundary, key) {
       onEachFeature: (ft, l) => l.bindTooltip(ft.properties.zone === 'edge' ? 'Edge pixel: mixed with neighbouring land, not classified'
         : `${ft.properties.zone} · ${(ft.properties.relative * 100).toFixed(0)}% of field median · same side in ${Math.round(ft.properties.consistency * 100)}% of ${ft.properties.seasons} seasons`) });
     zonesMap.fitBounds(layer.getBounds(), { padding: [10, 10] }); // set the view before adding vector layers
+    refitWhenShown(zonesMap, layer.getBounds(), { padding: [10, 10] });
     layer.addTo(zonesMap);
     L.polygon(boundary.coordinates[0].map(([x, y]) => [y, x]), { color: '#4FD29A', weight: 2.5, fill: false, interactive: false }).addTo(zonesMap);
     const pct = (v) => `${Math.round(v * 100)}%`;
@@ -656,7 +687,11 @@ async function boot() {
   state.crops = cropInfo.crops; state.goals = cropInfo.goals; state.plans = structuredClone(cropInfo.default_rotations);
   $('f-previous').innerHTML = state.crops.map(c => `<option>${esc(c.name)}</option>`).join('');
   renderPriorities();
-  mapCtl = createMap($('map'), layers, onPick, () => drawer?.drawing);
+  mapCtl = createMap($('map'), layers, () => {}, () => drawer?.drawing);  // a layer viewer here: the land is chosen in the overview
+  refitWhenShown(mapCtl.map, null);
+  addEventListener('hashchange', settleHash);  // a "See the evidence" link to another section of this same page
+  document.querySelector('.ev-tabs').onclick = (e) => { const b = e.target.closest('[data-tab]'); if (b) { showTab(b.dataset.tab); history.replaceState(null, '', location.pathname + location.search); } };
+  showTab(tabOf(location.hash.slice(1)) || 'now');
   drawer = createDrawer(mapCtl.map, { color: '#4FD29A', onChange: updateDrawUI });
   // While tracing, fade the coarse satellite overlay so the field edges in the basemap are visible.
   let savedOpacity = null;

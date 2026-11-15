@@ -1,31 +1,91 @@
-# Rotation Lab · speaker notes
+# Rotation Lab · speaker script
 
-Seven slides for NASA Space Apps 2026, Field Shift. Slides: `rotation-lab-slides.pdf` (or `rotation-lab-slides.html`).
+Seven slides, about 4 minutes. Read it as it is: short sentences, plain words. Pronunciation hints are in brackets at the top of a slide; don't read them out.
 
-## 1. cover
+## 1. Cover
 
-One sentence: Rotation Lab brings 45 years of NASA weather and every NASA satellite image of a grower’s own field together, as evidence for what to plant, when, and in what order. The grower stays the decision-maker.
+Hi, this is Rotation Lab, for the Field Shift challenge.
 
-## 2. motivation
+Rotation Lab helps a farmer decide three things: what to plant, when to plant it, and in what order.
 
-The challenge in three parts. Rotation: what a grower plants this year affects soil, pests and yields for years. Climate shift: the timing of frosts, dry spells and heat that farms were planned around is moving. Data: NASA holds decades of weather and satellite records, but they are scattered and hard to apply to one field’s decision. Rotation Lab answers one question for one field: which crops will grow reliably, when to plant them, and in what order.
+It uses forty-five years of NASA weather, and every satellite picture of the farmer’s own field.
 
-## 3. resources
+The farmer still makes the decision. We just bring the evidence.
 
-All the analysis runs on open NASA data. NASA POWER gives daily weather and soil wetness for the field’s location back to 1981, plus long-term monthly normals. NASA HLS, which harmonises Landsat and Sentinel-2 at 30 metres, gives the field’s own record since 2020: every image, clouds removed. NASA GIBS supplies map layers for context. Calculations follow FAO-56; ESA WorldCover marks the farmland around the field; the grower adds what NASA can’t know.
+## 2. The challenge
 
-## 4. space
+Here is the problem.
 
-This is the field view for a rainfed demo field near Orosháza, Hungary. The green line is this season’s greenness from NASA HLS; the shaded band is the field’s usual range for an autumn-sown crop, from its earlier seasons of the same crop. In May and June 2026 the crop fell well below it. The season check flagged 2026 as 23 percent less green before any weather was attached, and the NASA POWER record then showed the lowest rainfall and most hot days in 11 seasons. It also caught 2022, during the longest dry spell on record. The wording is “may have played a part”, never “caused”.
+What you plant this year changes your soil, your pests and your harvests for the next few years.
 
-## 5. thennow
+At the same time, the weather is changing. Frost, dry spells and heat don’t come when they used to.
 
-From the full NASA POWER record since 1981, the app compares the 1990s with the last ten seasons. In Stjørdal the frost-free season is 18 days longer and the last spring frost 12 days earlier, so more crops ripen; but for potatoes, warm humid blight weather has risen from about 7 to 12 days a season. In Orosháza, days above 30 degrees rose from about 40 to 62. A change is listed only if the whole 45-year record trends consistently, and the app does not call changes good or bad: a longer season helps some crops, more heat hurts others.
+NASA has decades of data about this. But it’s spread out, and it’s hard to use it for one real field.
 
-## 6. trust
+So our question is simple: for this one field, what grows well, when should I plant, and in what order?
 
-Why trust it. We checked the satellite crop types around the Stjørdal field against Statistics Norway: that check exposed a real flaw with northern grass leys, which we fixed, and grass and cereals now come within a few points. The app says when it cannot judge, and why. It gives evidence and options, never orders: likely crops are hints, and the rotation it checks is the grower’s own. It is free and needs no account. On a laptop it works for any temperate field, even offline; the hosted site shows the two demo fields, because reading a new field's satellite record takes longer than a hosted request may run. Limits are stated too: crop profiles still need an agronomist’s review.
+## 3. Built on open NASA data
 
-## 7. close
+Everything runs on free NASA data.
 
-Close with the promise and the two links: the live app, with two demo fields in Norway and Hungary, and the open code. Invite questions, and offer to show any field the audience names on a laptop.
+First, NASA POWER. It gives daily weather and soil moisture for the field, all the way back to 1981.
+
+Second, NASA HLS. These are satellite pictures from Landsat and Sentinel-2. We use every clear picture of the field since 2020.
+
+We also use long-term averages, to see if a month is normal or not. And NASA map layers, for context.
+
+The farmer adds what only they know: the shape of the field, the soil, and the crops.
+
+## 4. A weak season, and the weather behind it
+
+(Orosháza: say “OR-osh-haa-zah”.)
+
+Let me show you one real field. This one is in Hungary.
+
+The dark green line is this year. The light green band is what’s normal for this crop on this field.
+
+You can see this year dropped well below normal in May and June.
+
+The app flagged it: about twenty-three percent less green than usual.
+
+Then it checked the weather. That season had the lowest rain in eleven years, and the most hot days.
+
+It found the same thing in 2022, during a long dry spell.
+
+All of this comes from NASA data alone. And we only compare a crop with the same crop.
+
+## 5. What has changed on these fields
+
+(Stjørdal: say “STYUR-dahl”.)
+
+We also compare the 1990s with today.
+
+In Stjørdal, in Norway, the frost-free season is eighteen days longer. The last spring frost comes twelve days earlier. That’s good news for many crops.
+
+But for potatoes, the warm, wet weather that brings potato blight went up from about seven days to twelve days a season.
+
+In Hungary, days over thirty degrees went up from about forty to sixty-two.
+
+We only show a change when the whole forty-five years point the same way. And we don’t call it good or bad. That depends on the farmer’s crops.
+
+## 6. Evidence and options, not orders
+
+Why should you trust it?
+
+We checked our satellite crop map against official numbers from Statistics Norway. Grass and grain came within a few percent. That check also helped us find and fix a mistake.
+
+When the app is not sure, it says so, and it tells you why.
+
+It never gives orders. What we check is the farmer’s own plan.
+
+And it’s free, with no account. On a laptop it works for any field, even offline. Online, you can try two demo fields.
+
+## 7. Try it
+
+So that’s Rotation Lab. Read your field from space.
+
+You can try it right now: rotation-lab-tawny dot vercel dot app.
+
+The code is open on GitHub.
+
+Thank you! We’re happy to take your questions.

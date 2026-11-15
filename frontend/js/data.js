@@ -522,6 +522,7 @@ async function renderSatellite(f, d) {
         chip('Clear field images', st.clear_images), chip('Read now / cached', `${st.images_read_now} / ${st.images_from_cache}`), chip('Time', `${st.seconds} s`),
         chip('Delivery', { live: 'live', 'offline-cache': 'offline · local cache', snapshot: 'offline · saved snapshot' }[veg.delivery] || veg.delivery)].join('')}</div>
       <div class="season-key" id="season-key"></div>
+      <p class="chart-note" id="usual-line"></p>
       <div class="sat-grid">
         <div><div class="chart-title"><h3>Greenness inside the boundary</h3><div class="mini-switch" role="group" aria-label="Greenness index"><button type="button" data-g="ndvi" aria-pressed="true">NDVI</button><button type="button" data-g="evi" aria-pressed="false">EVI</button></div></div><div class="chart-box tall"><canvas id="c-ndvi" aria-label="Greenness by season"></canvas></div></div>
         <div><div class="chart-title"><h3>NDMI (canopy moisture) inside the boundary</h3></div><div class="chart-box tall"><canvas id="c-ndmi" aria-label="NDMI by season"></canvas></div></div>
@@ -552,6 +553,10 @@ async function renderSatellite(f, d) {
       const b = e.target.closest('[data-g]'); if (!b) return;
       panel.querySelectorAll('.mini-switch button').forEach((x) => x.setAttribute('aria-pressed', x === b)); drawKey(b.dataset.g);
     };
+    const u = veg.usual_range;
+    if (u && $('usual-line')) $('usual-line').textContent = u.status === 'too_few' ? `Not enough earlier ${u.crop ? u.crop.replace('_', ' ') : ''} seasons on this field for a usual range.`
+      : u.status === 'no_images' ? '' : `${u.season}: ${u.status === 'within' ? 'within' : `mostly ${u.status}`} the usual range ${u.basis === 'all' ? 'of all earlier seasons (crop not clear yet)' : `for ${u.crop.replace('_', ' ')} (${u.seasons.join(', ')})`}: `
+        + `${u.counts.within} of ${u.counts.within + u.counts.below + u.counts.above} clear images inside the crop's window (${u.judged_window[0]} to ${u.judged_window[1]}) fall within it, ${u.counts.below} below, ${u.counts.above} above (±${u.tolerance}). ${u.method}`;
     renderTrend(veg.trend, veg.archive);
     renderSeasonCheck(veg.season_check);
   } catch (e) {

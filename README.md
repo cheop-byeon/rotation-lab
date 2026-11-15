@@ -71,18 +71,19 @@ If port 8000 is already in use, pick another port with `PORT=…`.
 
 Switch between the two views with **Field view / Data view** at the top right.
 
-The demo field **Stjørdal 01** (Trøndelag, Norway) loads automatically: a real grass field east of Stjørdal, with its outline
-drawn on satellite imagery, so its weather, satellite record and crop-type hints appear straight away. Its location and outline are
-real; its soil, drainage, irrigation and crop are **illustrative example values, not a real farm's records**. Both views label it as a demo.
-Editing and saving it, or saving your own field, removes the label. (Databases created before this change have their old demo point,
-which sat on Værnes airport, moved automatically.)
+The demo field **Stjørdal 01** (Trøndelag, Norway) loads automatically. It is a **real 2.5 ha arable field** west of Stjørdal:
+- **Outline:** the property parcel from Kartverket's open property service (`ws.geonorge.no/eiendom/v1`), which follows the field's edges.
+- **Crops 2017–2024:** what the farm reported to Landbruksdirektoratet in its production-subsidy applications
+  ([open data](https://github.com/LandbruksdirektoratetGIT/opendata), NLOD). The farm reported the same 46 daa every year with one crop on all of it,
+  so the farm's crop is this field's crop: winter wheat 2017–2019, barley 2020, grass ley 2021–2024.
+- **Soil, drainage and irrigation:** not known, so they are left as *Unknown* rather than invented. (NIBIO's soil map, *Jordsmonn*, is open data and could fill these; its map service did not answer from our network.)
+- The farm is not named in the app. Both views label the field as a demo; editing and saving it, or saving your own field, removes the label.
 
-A second demo field, **Orosháza 01** (Békés county, Hungary), is rainfed arable land: a ~7 ha rectangle drawn inside a real field,
-with illustrative farm details. It shows the season check catching droughts from NASA data alone (2022 and 2026, below).
-The field view's demo note switches between the demo fields, and `/?field=<id>` opens a field directly (handy for recording a demo).
+Norway does not publish crops field by field; the subsidy data are per farm. A field's crops are known only when, as here, the farm grew one crop on all its land, or when the grower enters them.
+`/?field=<id>` opens a field directly (handy for recording a demo).
 
 **The two views stay on the same field.** Both open the same default (your own first field, else a demo) and read `?field=<id>`; the links between them carry it.
-Each field-view card ends with **See the evidence in the data view**, which opens the data view on the same field at the matching section (e.g. `/data?field=2#crop-then-now`). Field ids depend on the database: on a fresh install and on Vercel, Stjørdal is 1 and Orosháza 2.
+Each field-view card ends with **See the evidence in the data view**, which opens the data view on the same field at the matching section (e.g. `/data?field=1#crop-then-now`). Field ids depend on the database: on a fresh install and on Vercel, the Stjørdal demo is 1.
 An unsaved field is passed as its location; save it to keep it, with its outline, in both views.
 
 **Field view (`/`)**
@@ -203,8 +204,8 @@ The full record feeds **What has changed here** (field view) and **Then and now*
 - **1991–2000 is compared with the last ten seasons.** A change is called *consistent* only when the whole 1981–today record trends the same way (Theil–Sen slope, Mann–Kendall p < 0.05), so two decades that merely differ are not reported as climate change.
 - The field view lists consistent changes in plain words, without judging them good or bad (that depends on the grower's crops), and names the measures with no clear change.
 - For a ~50 km grid cell, not the field; grid-cell rain smooths out local downpours, so heavy-rain days are undercounted.
-- Stjørdal: frost-free season 133 → 151 days, last spring frost 25 May → 13 May, growing season +1.3 °C; no clear change in rain or dry spells.
-  Orosháza: season 195 → 220 days, days above 30 °C 40 → 62 a season, +1.7 °C; no clear change in rain or dry spells.
+- Stjørdal demo field: growing season +1.3 °C (8.8 → 10.1 °C), warmth for crops 850 → 1078 degree-days, growing-season rain 730 → 802 mm, days ≥ 25 °C 1.2 → 4.6 (all consistent).
+  The frost-free season is longer on average (144 → 161 days) but too uneven year to year to call consistent (p = 0.26), so the app does not report it as a change.
 
 #### Is this crop still a good choice here?
 
@@ -212,11 +213,10 @@ The crop-season simulation behind *Crops in your climate* is run over **every co
 ripened before frost (count of seasons), days in the ground, heat-stress days above the crop's limit, rain as a share of its water use (Kc × ET₀), and for potatoes **blight-weather days**.
 
 - **Blight-weather day:** daily minimum ≥ 10 °C and daily mean humidity ≥ 85%. The official late-blight rules (Smith, Hutton) need *hourly* humidity; NASA POWER's daily record allows only this stand-in, so it shows how often the weather favours blight, not a warning. Both views point to the national warning service (VIPS in Norway) for spraying decisions.
-- **"Ripened"** means the simulated crop reached its full thermal time before a killing frost. Early varieties and lifting or cutting before full maturity are not modelled, so it understates where a crop is grown in practice (potatoes are grown around Stjørdal, yet the main-crop profile ripens in only 5 of the last 10 seasons). The change over time is the more useful signal. Both views say so.
+- **"Ripened"** means the simulated crop reached its full thermal time before a killing frost. Early varieties and lifting or cutting before full maturity are not modelled, so it understates where a crop is grown in practice (potatoes are grown around Stjørdal, yet the main-crop profile ripens in only 6 of the last 10 seasons). The change over time is the more useful signal. Both views say so.
 - Climate side only: prices, contracts and costs are the grower's to weigh.
-- **Potato, Stjørdal:** ripened in 1 of 10 seasons in 1991–2000 and 5 of 10 now; **blight-weather days 7 → 12 a season** (consistent, p < 0.001); no clear change in heat or water.
-  **Potato, Orosháza:** ripens every year; no clear change; rain covers only ~46% of its water use, consistent with irrigated potatoes there.
-  **Grain maize, Orosháza:** heat-stress days above 35 °C 8 → 13 a season (consistent).
+- **Potato, Stjørdal:** ripened in 1 of 10 seasons in 1991–2000 and 6 of 10 now; **blight-weather days 9 → 13 a season** (consistent); no clear change in heat or water.
+  **Barley, spring wheat and grass ley, Stjørdal:** ripen (or reach full growth) in nearly every season; they now need 18–30 fewer days in the ground (consistent).
 
 ### 3. NASA GIBS — satellite map layers
 
@@ -249,7 +249,9 @@ The GIBS layers are for visual context only; nothing is calculated from them. Th
   Each hint carries its evidence. The rules are for temperate seasons; southern dates are shifted six months, and the tropics are not covered.
   The field view calls these "likely" crops and says they are hints, not records. If the latest season's pattern differs from the crop the grower entered, it says so as an observation.
   An unclear or late curve that never drops below green (NDVI 0.5) from late July to early September and is still green in autumn is read as *grass / ley* (no harvest; see the area-around section).
-  On the Stjørdal demo field the hints read *spring-sown ×3 → unclear → grass ×3* (a cereal followed by a ley). No field-level ground truth yet; the area-level check against Statistics Norway is described below.
+  If that field was also **bare in late April–May** (NDVI below 0.4), it was sown that spring, so it is read as a **new ley**: often grass sown under a spring cereal, which is harvested while the grass keeps growing.
+  **Checked against the crops the farm reported (demo field):** 2021–2024 grass ley, read as grass in all 4 seasons. 2020 barley was first read as grass; the curve was bare in May and green from July into October, the pattern of barley with grass sown under it, which matches grass from 2021. That case led to the *new ley* rule, and a new ley counts as fitting both a reported cereal and a reported ley.
+  When a field has reported crops, both views show them next to the hints and say whether each season fits.
 - **Productivity zones:** stronger and weaker parts of the field, from **EVI** (less saturated than NDVI in dense crops) for every 30 m pixel.
   For each season, each pixel's 90th-percentile EVI (at least 3 clear images) is divided by the median of the field's interior pixels that season, which removes the effect of different crops in different years.
   These values are averaged over at least 2 seasons. Weaker means below 0.95 of the field median, stronger above 1.05.
@@ -260,28 +262,28 @@ The GIBS layers are for visual context only; nothing is calculated from them. Th
   Inspired by DigiFarm's productivity zones, which are calibrated on Norwegian yield data; ours are not.
   **Download:** both views export the zone map as GeoJSON: one 30 m square per pixel with `zone` and `zone_id` (1 weaker, 2 average, 3 stronger, 0 edge), relative EVI and consistency, ready to load into farm-machinery or GIS software for variable-rate planning.
 - **This season against the field's usual range:** both greenness charts shade the field's usual range for this season's likely crop: lowest to highest NDVI, day by day, of the earlier seasons with the same crop hint (curves interpolated between clear images; no range across cloud gaps over 30 days; at least 2 seasons). One line under the chart says whether this season is within, mostly below or mostly above it. Only images inside the crop's own growing window count (as in the season check), allowing ±0.05 for sensor noise; "within" when ≥ 60% fall inside. Early in a season, before the crop is clear, it compares with all earlier seasons and says so.
-  Demo results: Orosháza 2026, mostly below the autumn-sown range of 2023 and 2025 (19 of 30 images, the May–June drought); Stjørdal 2026, within the grass range of 2024–2025.
+  Demo result: Stjørdal 2026, within the grass range of 2021–2025 (23 of 24 images).
 - **What's grown around you (within ~2 km):** every 30 m farmland pixel in a 4 × 4 km square around the field gets the same rule-based crop hint as the field (grass/ley, autumn-sown, spring-sown, late crop, bare, unclear), each season since 2020.
   Farmland = **ESA WorldCover 2021** cropland or grassland (leys are often mapped as grassland; majority of the 10 m cells inside each 30 m pixel), via Planetary Computer, CC BY 4.0. The field itself is left out. One MGRS tile is used so pixels line up; the vectorised rules give the same answer as the field's own hints (0 mismatches on 12,000 test pixels).
-  A shift is mentioned only when a share trends the same way across the seasons (Theil–Sen, Mann–Kendall p < 0.1, ≥ 5 points in total); around both demo fields there is none, and the first two vs last two seasons comparison it replaced had reported noise as shifts.
-  **Checked against Statistics Norway** (table 06462, Stjørdal municipality, 2020–2025: cereals and oilseeds 52%, grass and leys 46%, potatoes and green fodder ~2%). Around the demo field (2020–2026 averages): grass 42%, spring-sown 45%, late crops 11%, unclear 2%. Grass and spring-sown crops are within ~4–7 points and the order is right; late crops are still overcounted by ~9 points. Around Orosháza single seasons swing by up to ~40 points (e.g. the 2022 drought); not checked for Hungary.
-  This check found a real weakness: northern leys green up late after snow and missed the spring test, so grass first read 24%. The crop-hint rules now add: **an unclear or late curve that never drops below green (NDVI 0.5) from late July to early September and is still green in autumn has had no harvest, so it is grass or ley.** The threshold is the app's existing definition of "green", not tuned to the statistics. It changed no crop hint on the four test fields (two Norwegian, two Hungarian) and nothing around Orosháza (dry autumns).
-  So the field view gives the order of crop types, not percentages, plus the shift result and this caveat; the data view shows the numbers, map, chart and the check. First read ~80 s per field, then cached; both demo areas are in the offline snapshots.
+  A shift is mentioned only when a share trends the same way across the seasons (Theil–Sen, Mann–Kendall p < 0.1, ≥ 5 points in total); around the demo field there is none, and the first two vs last two seasons comparison it replaced had reported noise as shifts.
+  **Checked against what farms reported** (Landbruksdirektoratet, production-subsidy applications, open data): the 11 farms based within 2 km of the demo field reported **grass 22–24% and cereals 76–78%** of their arable land in 2021–2024, and no potatoes.
+  From satellite, the farmland around the field read grass 20–29%, spring-sown 56–62% plus new ley 7–14% (cereals with grass sown under them count as cereals in the applications), late crops 2–8%. Grass is within a few points; cereals read ~5–10 points low; late crops are overcounted.
+  Rough: those farms farm only about a third of the 524 ha of farmland in the square, and other farms rent land there. 2020 is not comparable (44% read as late crops; many cloudy images).
+  An earlier check against Statistics Norway (table 06462, Stjørdal municipality, 2020–2025: cereals and oilseeds 52%, grass and leys 46%) found a real weakness: northern leys green up late after snow and missed the spring test, so grass first read 24% around the earlier demo field. The crop-hint rules then added: **an unclear or late curve that never drops below green (NDVI 0.5) from late July to early September and is still green in autumn has had no harvest, so it is grass or ley.** The threshold is the app's existing definition of "green", not tuned to the statistics.
+  So the field view gives the order of crop types, not percentages, plus the shift result and this caveat; the data view shows the numbers, map, chart and the check. First read ~80 s per field, then cached; the demo area is in the offline snapshots.
 - **Season check (crop stress, season level):** was a season clearly less green than the field's *other seasons with the same likely crop*, and did its weather stand out?
   Each season's season-long EVI (see the trend below) is compared with the median of the field's other seasons with the same crop hint (at least 2). 10% or more below is flagged. Seasons with a cloud gap, an unclear crop or too few same-crop seasons are listed as not judged, with the reason.
   For each season, the NASA POWER weather of that season is ranked against all ~10 seasons on record. Once the growing months are over (November in the north, May in the south), the current season is included too, marked "season so far". A factor "stands out" only when the season is among the 2 most extreme *and* clearly differs from the median: longest dry spell (+3 days), low rain (≤ 80%), high rain (≥ 125%), hot days (+2), cool season (GDD5 ≤ 92%), late spring frost (+7 days), dry or wet root zone (±0.05).
   The wording is "coincides with", never "caused by". When the weather was normal, the field view says sowing, variety, field work or pests may explain it, and that the grower knows best.
   Within-season dips are deliberately not flagged: grass cuts and harvests look exactly like damage from orbit.
-  **Tested on real fields:** on both Stjørdal fields no season is flagged (all within ±10% of the same-crop median).
-  On two rainfed fields near Orosháza, Hungary, it flagged **2022** (a likely lucerne stand 18% below its other lucerne years, during the longest dry spell in the record: 33 days against 23) and **2026** on both fields (23% below, during the lowest rainfall on record: 119 mm against 324, with the most hot days and the driest root zone). The 2026 flags were raised before the weather was attached, so satellite and weather agree independently.
-  Where a weak season has only one other same-crop season (a winter crop in 2022 on the second field, peak NDVI 0.76 against ~0.9), it is reported as not judged rather than guessed.
+  **On the demo field:** 2021, the first full year of the new ley, is flagged at 11% below the other grass years, with no weather factor standing out, so the app points to establishment, field work or other causes the grower knows. 2022–2026 are within the usual range; 2020 (the new ley's sowing year) is not judged because of a 41-day cloud gap.
   Inspired by DigiFarm's crop-damage indicator.
 - **Productivity trend:** is the field's season-long greenness rising or falling over the years?
   Per season, the clear-image EVI values are interpolated into a daily curve and averaged over **that season's likely crop's window** (northern dates; shifted six months in the south): winter crops 1 Apr–15 Jul (harvested in July, so the stubble after harvest is left out), spring crops 1 May–31 Aug, late crops 15 May–15 Oct, grass and unclassified 1 Apr–31 Oct.
   A season is **skipped** when the core of that window has a long cloud gap (40 days, or 45% of the core for shorter windows) or fewer than 8 clear images, because one missing month can move the mean more than any real trend. Skipped seasons are listed with their gap.
   The slope is a **Theil–Sen** estimate (robust to one odd season), tested with **Mann–Kendall**. A trend is reported only with at least 6 usable seasons, p < 0.1 and a slope of at least 1% of the mean per year; otherwise it says "no clear trend" or "too few seasons".
-  **When the likely crop changes, no overall direction is given**: a perennial ley followed by cereals is "less green" without the field getting worse (on the Hungarian field the overall line read −13.8% a year, p = 0.007, purely from that change). Instead it reports the trend among seasons with the most common crop when there are at least 4, and the chart colours each season by its likely crop.
-  On the Stjørdal test fields: one has no clear trend across its 5 spring-crop seasons; the demo field has too few complete seasons (2024 and 2026 lost 43–44 days of June to cloud).
+  **When the likely crop changes, no overall direction is given**: a perennial ley followed by cereals is "less green" without the field getting worse (on an earlier test field the overall line read −13.8% a year, p = 0.007, purely from that change). Instead it reports the trend among seasons with the most common crop when there are at least 4, and the chart colours each season by its likely crop.
+  On the demo field: no clear trend across its 6 grass seasons, 2021–2026 (+1.3% a year, p = 0.26).
   Inspired by DigiFarm's sustainability index; with HLS from 2020 the record is short, so this is a first look, not a verdict.
 - **Cross-checks seen in testing (Stjørdal):** Sentinel-2 and Landsat values from the same day agree within about 0.02 NDVI, and emergence in early June matches the weather-based sowing window.
 - **Limits:** cloudy regions have gaps. A 30 m pixel needs fields of at least 0.3 ha, and edge pixels mix with the neighbouring land. NDVI differences between seasons also reflect *which crop* was grown.
@@ -291,6 +293,8 @@ The GIBS layers are for visual context only; nothing is calculated from them. Th
 - **ESA WorldCover 2021** (CC BY 4.0) via Microsoft Planetary Computer: the farmland mask for *what's grown around you*.
 - **Microsoft Planetary Computer**: open hosting of NASA HLS and ESA WorldCover (STAC API, anonymous token).
 - **Statistics Norway table 06462**: used once to check the area-around results; not used by the app.
+- **Landbruksdirektoratet, production-subsidy applications 2017–2024** ([open data on GitHub](https://github.com/LandbruksdirektoratetGIT/opendata), NLOD): crop areas each farm reported, per year. Gives the demo field's real crop history, and was used offline to check the area-around results. Per farm, not per field; farm names are not shown.
+- **Kartverket property service** (`ws.geonorge.no/eiendom/v1`, open): the property parcel that gives the demo field's outline.
 
 - **Esri World Imagery** basemap: high-resolution imagery for locating the actual parcel, since GIBS stops at ~250 m.
 - **Esri World Boundaries and Places**: place-name and boundary labels. GIBS `Reference_Labels_15m` returns error pages instead of transparent tiles where there are no labels, which rendered as black squares.

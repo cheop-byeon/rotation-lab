@@ -23,6 +23,8 @@ a { color: var(--green); }
 button, input, select { font: inherit; color: inherit; }
 :focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
 .muted { color: var(--ink-2); }
+.rep-ok { color: var(--green); font-weight: 600; }
+.rep-diff { color: var(--amber); font-weight: 600; }
 .small { font-size: .9rem; }
 
 .bar { position: sticky; top: 0; z-index: 1000; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px; background: var(--card); border-bottom: 1px solid var(--line); }

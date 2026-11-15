@@ -13,27 +13,26 @@ SERVERLESS = bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTIO
 _default_db = Path("/tmp/rotation_lab.db") if SERVERLESS else Path(__file__).resolve().parents[2] / "data" / "rotation_lab.db"
 DB_PATH = Path(os.environ.get("ROTATION_LAB_DB", _default_db))
 
-# Illustrative demo field: a real grass field east of Stjørdal (Trøndelag, Norway), outlined on imagery.
-# Location and outline are real; soil, drainage, irrigation and crop are made-up example values.
+# Demo field: a real arable field near Stjørdal (Trøndelag, Norway). Its outline is the property parcel from
+# Kartverket's open property service, and the crops are what the farm reported to Landbruksdirektoratet
+# (production subsidy applications, open data under NLOD). The farm reported the same 46 daa every year and one crop
+# on all of it, so the farm's crop is this field's crop. Soil, drainage and irrigation are not known, so they are left
+# unknown rather than invented. The farm is not named in the app.
+REPORTED_SOURCE = ("Landbruksdirektoratet, production subsidy applications 2017–2024 (open data, NLOD): "
+                   "one crop on all of the farm's 46 daa each year")
 DEMO_FIELD = {
-    "name": "Stjørdal 01", "lat": 63.4695, "lon": 10.9679, "soil": "Loamy", "drainage": "Moderate", "irrigation": "No",
+    "name": "Stjørdal 01", "lat": 63.4806, "lon": 10.8756, "soil": "Unknown", "drainage": "Unknown", "irrigation": "Unknown",
     "previous_crop": "Grass–clover ley",
-    "notes": "Demo field, Trøndelag, Norway. Real location and outline; illustrative farm details, not a real farm.",
-    "boundary": {"type": "Polygon", "coordinates": [[[10.966523, 63.470528], [10.970857, 63.470241], [10.970213, 63.467998],
-                                                      [10.965836, 63.468956], [10.965965, 63.469551], [10.966523, 63.470528]]]},
+    "notes": "Demo field, Trøndelag, Norway. Real field: outline from Kartverket, crops 2017–2024 as reported by the farm "
+             "to Landbruksdirektoratet. Soil, drainage and irrigation not known.",
+    "boundary": {"type": "Polygon", "coordinates": [[[10.876296, 63.480376], [10.876188, 63.480341], [10.875655, 63.48018], [10.875261, 63.480043], [10.874719, 63.479882], [10.873836, 63.479605], [10.873578, 63.47952], [10.873542, 63.479536], [10.873382, 63.479607], [10.872323, 63.480731], [10.875705, 63.48146], [10.875844, 63.481404], [10.875954, 63.481358], [10.876041, 63.481318], [10.876115, 63.481271], [10.876181, 63.481228], [10.876247, 63.481174], [10.876296, 63.481105], [10.876327, 63.481028], [10.876358, 63.480947], [10.876368, 63.480854], [10.876369, 63.480766], [10.876364, 63.480674], [10.876344, 63.480575], [10.876303, 63.480488], [10.87628, 63.480416], [10.8763, 63.480377], [10.876296, 63.480376]]]},
+    "reported_crops": [{"year": 2017, "crop": "Winter wheat"}, {"year": 2018, "crop": "Winter wheat"},
+                       {"year": 2019, "crop": "Winter wheat"}, {"year": 2020, "crop": "Barley"},
+                       {"year": 2021, "crop": "Grass ley"}, {"year": 2022, "crop": "Grass ley"},
+                       {"year": 2023, "crop": "Grass ley"}, {"year": 2024, "crop": "Grass ley"}],
 }
-
-# Second demo field: rainfed arable land near Orosháza (Békés county, Hungary). The outline is a rectangle drawn
-# inside a real field on Esri imagery; farm details are illustrative. It shows the season check catching the
-# 2022 drought from NASA data alone.
-DEMO_FIELD_HU = {
-    "name": "Orosháza 01", "lat": 46.6045, "lon": 20.6571, "soil": "Loamy", "drainage": "Good", "irrigation": "No",
-    "previous_crop": "Barley",
-    "notes": "Demo field, Békés county, Hungary. Real location; outline drawn inside a real field; illustrative farm details, not a real farm.",
-    "boundary": {"type": "Polygon", "coordinates": [[[20.655155, 46.605582], [20.659125, 46.605582], [20.659125, 46.603371],
-                                                      [20.655155, 46.603371], [20.655155, 46.605582]]]},
-}
-DEMO_FIELDS = [DEMO_FIELD, DEMO_FIELD_HU]
+DEMO_FIELDS = [DEMO_FIELD]
+RETIRED_DEMOS = ("Orosháza 01",)  # demo fields removed from the app; dropped from existing databases
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS power_cache (
@@ -53,6 +52,7 @@ CREATE TABLE IF NOT EXISTS fields (
     notes TEXT NOT NULL DEFAULT '',
     demo INTEGER NOT NULL DEFAULT 0,
     boundary TEXT,
+    reported_crops TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE TABLE IF NOT EXISTS hls_cache (
@@ -73,22 +73,17 @@ def init_db() -> None:
             con.execute("UPDATE fields SET demo = 1 WHERE notes LIKE 'Demo field%'")
         if "boundary" not in cols:  # migrate: optional GeoJSON field outline
             con.execute("ALTER TABLE fields ADD COLUMN boundary TEXT")
-        d = DEMO_FIELD
-        values = (d["name"], d["lat"], d["lon"], d["soil"], d["drainage"], d["irrigation"], d["previous_crop"],
-                  d["notes"], json.dumps(d["boundary"]))
-        if con.execute("SELECT COUNT(*) FROM fields").fetchone()[0] == 0:
-            con.execute("INSERT INTO fields(name, lat, lon, soil, drainage, irrigation, previous_crop, notes, boundary, demo) "
-                        "VALUES (?,?,?,?,?,?,?,?,?,1)", values)
-        else:
-            # Move an untouched older demo field (the point on Værnes airport) to the outlined grass field.
-            con.execute("UPDATE fields SET name=?, lat=?, lon=?, soil=?, drainage=?, irrigation=?, previous_crop=?, notes=?, boundary=? "
-                        "WHERE demo = 1 AND boundary IS NULL AND lat = 63.46 AND lon = 10.92", values)
-        # Later demo fields are added once to existing databases too.
-        for d in DEMO_FIELDS[1:]:
-            if not con.execute("SELECT 1 FROM fields WHERE demo = 1 AND name = ?", (d["name"],)).fetchone():
-                con.execute("INSERT INTO fields(name, lat, lon, soil, drainage, irrigation, previous_crop, notes, boundary, demo) "
-                            "VALUES (?,?,?,?,?,?,?,?,?,1)", (d["name"], d["lat"], d["lon"], d["soil"], d["drainage"], d["irrigation"],
-                                                              d["previous_crop"], d["notes"], json.dumps(d["boundary"])))
+        if "reported_crops" not in cols:  # migrate: crops reported for the field, year by year (JSON)
+            con.execute("ALTER TABLE fields ADD COLUMN reported_crops TEXT")
+        con.executemany("DELETE FROM fields WHERE demo = 1 AND name = ?", [(n,) for n in RETIRED_DEMOS])
+        for d in DEMO_FIELDS:
+            values = (d["lat"], d["lon"], d["soil"], d["drainage"], d["irrigation"], d["previous_crop"], d["notes"],
+                      json.dumps(d["boundary"]), json.dumps(d.get("reported_crops")), d["name"])
+            # An untouched demo field (editing clears the demo flag) always follows the current definition.
+            if not con.execute("UPDATE fields SET lat=?, lon=?, soil=?, drainage=?, irrigation=?, previous_crop=?, notes=?, "
+                               "boundary=?, reported_crops=? WHERE demo = 1 AND name = ?", values).rowcount:
+                con.execute("INSERT INTO fields(lat, lon, soil, drainage, irrigation, previous_crop, notes, boundary, "
+                            "reported_crops, name, demo) VALUES (?,?,?,?,?,?,?,?,?,?,1)", values)
 
 
 @contextmanager

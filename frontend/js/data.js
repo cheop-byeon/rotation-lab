@@ -319,11 +319,11 @@ function finishBoundary() {
   status('Boundary set. Press Analyze field to read its NASA HLS record (first time: up to a minute).');
 }
 
-const HINT_LABEL = { grass: 'Grass / ley', winter_crop: 'Autumn-sown', spring_crop: 'Spring-sown', late_crop: 'Late crop',
+const HINT_LABEL = { grass: 'Grass / ley', new_ley: 'New ley', winter_crop: 'Autumn-sown', spring_crop: 'Spring-sown', late_crop: 'Late crop',
   bare: 'Bare / failed', unclear: 'Unclear', unknown: 'Too cloudy', unavailable: 'n/a (tropics)' };
 
-const AROUND_COLOUR = { grass: '#2fa477', winter_crop: '#2e98c4', spring_crop: '#c8801f', late_crop: '#9d5bdb', bare: '#6b7684', unclear: '#4B5563' };
-const AROUND_NAME = { grass: 'Grass / ley', winter_crop: 'Autumn-sown', spring_crop: 'Spring-sown', late_crop: 'Late crop', bare: 'Bare / failed', unclear: 'Unclear' };
+const AROUND_COLOUR = { grass: '#2fa477', new_ley: '#c2547f', winter_crop: '#2e98c4', spring_crop: '#c8801f', late_crop: '#9d5bdb', bare: '#6b7684', unclear: '#4B5563' };
+const AROUND_NAME = { grass: 'Grass / ley', new_ley: 'New ley', winter_crop: 'Autumn-sown', spring_crop: 'Spring-sown', late_crop: 'Late crop', bare: 'Bare / failed', unclear: 'Unclear' };
 let aroundMap;
 async function renderAround(f) {
   const key = JSON.stringify(f.boundary); state.aroundFor = key;
@@ -517,6 +517,9 @@ async function renderSatellite(f, d) {
     if (state.vegFor !== key) return;
     state.veg = veg;
     const wx = Object.fromEntries(d.seasons.map((s) => [s.label, s]));
+    // Reported crops belong to the saved field, and only while its outline is unchanged.
+    const saved = state.fields.find((x) => x.id === state.fieldId && JSON.stringify(x.boundary) === key);
+    const rep = saved?.reported_crops?.length ? Object.fromEntries(saved.reported_crops.map((r) => [String(r.year), r.crop])) : null;
     const st = veg.stats, n = (v, k = 3) => (v == null ? '—' : v.toFixed(k));
     const chip = (k, v) => `<div class="stat-chip"><div class="k"><span>${k}</span></div><div class="v">${v}</div></div>`;
     panel.innerHTML = `<div class="sat-stats">${[chip('Field area', `${veg.area_ha.toFixed(2)} ha`), chip('Images found', st.images_found),
@@ -529,9 +532,9 @@ async function renderSatellite(f, d) {
         <div><div class="chart-title"><h3>NDMI (canopy moisture) inside the boundary</h3></div><div class="chart-box tall"><canvas id="c-ndmi" aria-label="NDMI by season"></canvas></div></div>
       </div>
       <p class="chart-note">Each point is one image: the median of clear pixels inside the boundary; images with under ${Math.round(veg.method.min_clear_share * 100)}% of the field clear are dropped. Growing months only (${esc(veg.method.growing_months)}).</p>
-      <div class="data-table-wrap" style="max-height:none"><table><thead><tr><th>Season</th><th>Crop-type hint</th><th class="num">Images</th><th class="num">Clear</th><th>Green-up</th><th>Peak date</th>
+      <div class="data-table-wrap" style="max-height:none"><table><thead><tr><th>Season</th><th>Crop-type hint</th>${rep ? '<th>Reported crop</th>' : ''}<th class="num">Images</th><th class="num">Clear</th><th>Green-up</th><th>Peak date</th>
         <th class="num">Peak NDVI</th><th class="num">Mean NDVI</th><th class="num">Season EVI</th><th class="num">Peak NDMI</th><th class="num">Rain (frost-free)</th><th class="num">ET₀</th><th class="num">Longest dry spell</th><th class="num">Heat days</th></tr></thead><tbody>
-        ${veg.seasons.map((s) => { const w = wx[s.label]; return `<tr><td><b>${esc(s.label)}</b></td><td title="${esc(s.crop_hint?.evidence ?? '')}">${esc(HINT_LABEL[s.crop_hint?.type] ?? '—')}</td><td class="num">${s.images}</td><td class="num">${s.clear_images}</td>
+        ${veg.seasons.map((s) => { const w = wx[s.label]; return `<tr><td><b>${esc(s.label)}</b></td><td title="${esc(s.crop_hint?.evidence ?? '')}">${esc(HINT_LABEL[s.crop_hint?.type] ?? '—')}</td>${rep ? `<td>${esc(rep[s.label] ?? '—')}</td>` : ''}<td class="num">${s.images}</td><td class="num">${s.clear_images}</td>
           <td>${s.greenup_date ? fmtDay(s.greenup_date) : s.greenup_cloud_gap ? '<span class="muted">cloud gap</span>' : '—'}</td><td>${s.peak_date ? fmtDay(s.peak_date) : '—'}</td>
           <td class="num">${n(s.peak_ndvi)}</td><td class="num">${n(s.mean_ndvi)}</td><td class="num" title="${s.season_evi_mean == null && s.core_gap_days ? `skipped: ${s.core_gap_days}-day cloud gap` : ''}">${s.season_evi_mean == null ? (s.core_gap_days > s.max_gap_days ? '<span class="muted">gap</span>' : '—') : n(s.season_evi_mean)}</td><td class="num">${n(s.peak_ndmi)}</td>
           <td class="num">${w ? w.season_rain_mm + ' mm' : '—'}</td><td class="num">${w ? w.season_et0_mm + ' mm' : '—'}</td><td class="num">${w ? w.longest_dry_spell + ' d' : '—'}</td><td class="num">${w ? w.heat_days : '—'}</td></tr>`; }).join('')}
@@ -541,6 +544,7 @@ async function renderSatellite(f, d) {
       <div class="zones-block"><div class="chart-title"><h3>Productivity trend (season-long EVI, ${veg.trend.seasons.length ? `${veg.trend.seasons[0].season}–${veg.trend.seasons[veg.trend.seasons.length - 1].season}` : '—'})</h3></div>
         <div class="zones-grid"><div class="chart-box"><canvas id="c-trend" aria-label="Season-long EVI by season with trend line"></canvas></div><div id="trend-info"></div></div></div>
       <div class="zones-block"><div class="chart-title"><h3>Season check: weak seasons and their weather</h3></div><div id="season-check"></div></div>
+      ${rep ? `<p class="chart-note"><b>Reported crops:</b> ${esc(saved.reported_source)}.</p>` : ''}
       <p class="chart-note">Crop-type hints are rule-based on the curve shape (hover a hint for its evidence): ${esc(veg.method.crop_hint)}</p>
       <p class="chart-note">Weather columns come from NASA POWER for the same season (frost-free window); “—” where the season is not complete in the weather record.</p>
       <details><summary class="label" style="cursor:pointer">All ${veg.observations.length} image readings</summary><div class="data-table-wrap"><table><thead><tr><th>Date</th><th>Sensor</th><th class="num">Field clear</th><th class="num">Tile cloud</th><th class="num">NDVI</th><th class="num">NDMI</th></tr></thead><tbody>

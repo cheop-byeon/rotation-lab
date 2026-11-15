@@ -332,6 +332,10 @@ async def export_csv(lat: float = Query(ge=-60, le=75), lon: float = Query(ge=-1
 def _field_row(r) -> dict:
     d = dict(r)
     d["boundary"] = json.loads(d["boundary"]) if d.get("boundary") else None
+    d["reported_crops"] = json.loads(d["reported_crops"]) if d.get("reported_crops") else None
+    if d["reported_crops"]:
+        from .db import REPORTED_SOURCE
+        d["reported_source"] = REPORTED_SOURCE
     return d
 
 

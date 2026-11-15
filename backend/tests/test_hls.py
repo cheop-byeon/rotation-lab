@@ -98,9 +98,15 @@ def test_demo_field_works_offline_from_snapshots(monkeypatch):
             assert v.json()["season_check"]["weather_seasons"] >= 10  # weather joined offline too
             z = cl.post("/api/zones", json={"boundary": f["boundary"]})
             assert z.status_code == 200 and z.json()["status"] in ("ok", "uniform") and z.json()["delivery"] in ("snapshot", "offline-cache")
-        # the Hungarian demo shows the 2022 drought caught from NASA data alone
-        sc = cl.post("/api/vegetation", json={"boundary": DEMO_FIELDS[1]["boundary"]}).json()["season_check"]
-        assert "2022" in sc["flagged"]
+        # the demo field is a real Stjørdal field: its satellite hints agree with the crops its farm reported
+        demo = DEMO_FIELDS[0]
+        hints = {s["season"]: s["crop_hint"]["type"] for s in cl.post("/api/vegetation", json={"boundary": demo["boundary"]}).json()["seasons"]}
+        reported = {r["year"]: r["crop"] for r in demo["reported_crops"]}
+        assert reported[2020] == "Barley" and hints[2020] == "new_ley"   # bare in spring, grass sown under the barley
+        assert all(hints[y] == "grass" for y in range(2021, 2025)) and all(reported[y] == "Grass ley" for y in range(2021, 2025))
+        listed = cl.get("/api/fields").json()
+        assert [f["name"] for f in listed if f["demo"]] == ["Stjørdal 01"]
+        assert listed[0]["reported_crops"] and "Landbruksdirektoratet" in listed[0]["reported_source"]
 
 
 def _px_obs(grid, season_dates, tile="T32VNR"):

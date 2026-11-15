@@ -178,6 +178,12 @@ footer { text-align: center; color: var(--ink-2); font-size: .85rem; padding: 0 
   details.others { display: block; }
 }
 
+/* ---------------- header: choose other land, and how much detail */
+.bar-right { display: flex; align-items: center; gap: 10px; }
+.choose-land { text-decoration: none; color: var(--green); font-weight: 700; font-size: .85rem; padding: 8px 12px; border: 2px solid var(--green); border-radius: 12px; white-space: nowrap; }
+.choose-land:hover { background: var(--green-soft); }
+@media (max-width: 420px) { .bar .brand span { display: none; } }
+
 /* ---------------- where you are */
 .crumbs { margin: 14px 0 0; font-size: .95rem; color: var(--ink-2); overflow-wrap: anywhere; }
 .crumbs a { color: var(--green); font-weight: 700; }

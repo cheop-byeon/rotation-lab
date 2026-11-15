@@ -124,7 +124,7 @@ export default {
     blightNote: 'Blight-weather days are a daily stand-in for the official hourly rules. For spraying decisions, use the national warning service (VIPS in Norway).',
     failed: 'Could not check this crop: {error}',
   },
-  nav: { allAreas: 'All areas', overview: 'Overview', evidence: 'Evidence' },
+  nav: { allAreas: 'All areas', chooseLand: 'Choose land', overview: 'Overview', evidence: 'Evidence' },
   area: {
     tagline: 'Farming in any Norwegian municipality, from public records.',
     findTitle: 'Choose a place',

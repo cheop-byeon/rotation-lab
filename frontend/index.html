@@ -77,8 +77,14 @@
   <p class="loading" id="loading" role="status" aria-live="polite"></p>
 
   <div id="results" hidden>
+    <nav class="tabs" role="tablist" aria-label="Topics">
+      <button type="button" role="tab" data-tab="now" aria-selected="true" data-t="tabs.now">Now</button>
+      <button type="button" role="tab" data-tab="field" aria-selected="false" data-t="tabs.field">From space</button>
+      <button type="button" role="tab" data-tab="climate" aria-selected="false" data-t="tabs.climate">Climate</button>
+      <button type="button" role="tab" data-tab="plan" aria-selected="false" data-t="tabs.plan">Plan</button>
+    </nav>
     <!-- RIGHT NOW -->
-    <section class="card" aria-labelledby="now-h">
+    <section class="card" aria-labelledby="now-h" data-panel="now">
       <h2 id="now-h" data-t="now.title">Right now</h2>
       <p class="headline" id="now-headline"></p>
       <div class="gauges" id="gauges"></div>
@@ -87,14 +93,14 @@
     </section>
 
     <!-- TO DO -->
-    <section class="card" aria-labelledby="todo-h">
+    <section class="card" aria-labelledby="todo-h" data-panel="now">
       <h2 id="todo-h" data-t="todo.title">Things to consider</h2>
       <div class="todo" id="todo"></div>
       <a class="why" data-anchor="briefing" href="/data#briefing" data-t="app.why">See the evidence in the data view</a>
     </section>
 
     <!-- SEASON -->
-    <section class="card" aria-labelledby="season-h">
+    <section class="card" aria-labelledby="season-h" data-panel="now">
       <h2 id="season-h" data-t="season.title">Your season</h2>
       <div class="calendar" id="calendar"></div>
       <ul class="season-facts" id="season-facts"></ul>
@@ -102,40 +108,40 @@
     </section>
 
     <!-- FIELD FROM SPACE -->
-    <section class="card" aria-labelledby="space-h">
+    <section class="card" aria-labelledby="space-h" data-panel="field">
       <h2 id="space-h" data-t="space.title">Your field from space</h2>
       <div id="space"></div>
       <a class="why" data-anchor="satellite" href="/data#satellite" data-t="app.why">See the evidence in the data view</a>
     </section>
 
     <!-- CROPS -->
-    <section class="card" aria-labelledby="around-h">
+    <section class="card" aria-labelledby="around-h" data-panel="field">
       <h2 id="around-h" data-t="around.title">What's grown around you</h2>
       <div id="around"></div>
       <a class="why" data-anchor="around" href="/data#around" data-t="app.why">See the evidence in the data view</a>
     </section>
 
-    <section class="card" aria-labelledby="changed-h">
+    <section class="card" aria-labelledby="changed-h" data-panel="climate">
       <h2 id="changed-h" data-t="changed.title">What has changed here</h2>
       <div id="changed"><p class="loading" data-t="changed.loading">Reading NASA weather records since 1981…</p></div>
       <a class="why" data-anchor="change" href="/data#change" data-t="app.why">See the evidence in the data view</a>
     </section>
 
-    <section class="card" aria-labelledby="crops-h">
+    <section class="card" aria-labelledby="crops-h" data-panel="climate">
       <h2 id="crops-h" data-t="crops.title">Crops in your climate</h2>
       <p class="muted" data-t="crops.intro">How each crop would have done in each of the last 10 seasons here.</p>
       <div id="crop-groups"></div>
       <a class="why" data-anchor="crops" href="/data#crops" data-t="app.why">See the evidence in the data view</a>
-      <div class="crop-check">
-        <h3 data-t="cc.title">Crops then and now</h3>
+      <details class="more crop-check">
+        <summary data-t="cc.title">Crops then and now</summary>
         <label class="cc-pick"><span data-t="cc.crop">Crop</span> <select id="cc-crop"></select></label>
         <div id="cc-out"></div>
         <a class="why" data-anchor="crop-then-now" href="/data#crop-then-now" data-t="app.why">See the evidence in the data view</a>
-      </div>
+      </details>
     </section>
 
     <!-- PLAN -->
-    <section class="card" aria-labelledby="plan-h">
+    <section class="card" aria-labelledby="plan-h" data-panel="plan">
       <h2 id="plan-h" data-t="plan.title">Your rotation</h2>
       <p class="muted" data-t="plan.intro">Set the crops you plan for the next three years. Each choice is checked against ten years of weather at your field.</p>
       <div class="plan-strip" id="my-plan-strip"></div>

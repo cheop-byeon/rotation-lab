@@ -10,7 +10,7 @@ export default {
   app: {
     tagline: 'Ten years of NASA weather records for your field, at a glance.',
     viewArea: 'Area view', viewField: 'Field view', viewData: 'Data view',
-    why: 'See the evidence →',
+    why: 'See the evidence',
     loading: 'Getting 10 years of NASA weather for your field…',
     failed: 'Could not load the data: {error}',
     print: 'Print or save this page',
@@ -54,6 +54,8 @@ export default {
     chartLabel: 'Greenness through the season, this year and earlier years',
     thisYear: '{y}', earlier: 'Earlier years',
     axisLow: 'Bare soil', axisHigh: 'Full green crop',
+    moreSeasons: 'Season by season',
+    about: 'About these numbers',
     table: { year: 'Season', likely: 'Likely crop', reported: 'Reported crop', up: 'Crop came up', peak: 'Greenest', value: 'Peak greenness', clear: 'Clear images' },
     hint: { grass: 'Grass / ley', winter_crop: 'Autumn-sown crop', spring_crop: 'Spring-sown crop', late_crop: 'Late crop (e.g. potato, maize)',
             new_ley: 'New ley (grass sown, often under a cereal)',
@@ -124,6 +126,7 @@ export default {
     blightNote: 'Blight-weather days are a daily stand-in for the official hourly rules. For spraying decisions, use the national warning service (VIPS in Norway).',
     failed: 'Could not check this crop: {error}',
   },
+  tabs: { now: 'Now', field: 'From space', climate: 'Climate', plan: 'Plan' },
   nav: { allAreas: 'All areas', chooseLand: 'Choose land', overview: 'Overview', evidence: 'Evidence' },
   area: {
     tagline: 'Farming in any Norwegian municipality, from public records.',

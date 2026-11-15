@@ -96,6 +96,8 @@ Each field-view card ends with **See the evidence in the data view**, which open
 An unsaved field is passed as its location; save it to keep it, with its outline, in both views.
 
 **Overview (`/field`)**
+
+The overview shows one topic at a time, in four tabs: **Now** (conditions, things to consider, the sowing window), **From space** (the field's satellite record and what is grown around it), **Climate** (what has changed since the 1990s, and how crops would have done) and **Plan** (the rotation). Tables, the zones map, the crop-by-crop *then and now* and the footnotes sit behind *show more* links; printing shows every tab.
 1. Press **Choose my field**, tap the field on the map (or *Use my location*), and tap your soil, drainage, irrigation and this year's crop.
 2. Press **Show my field**. A new location takes ~3–5 s the first time, then it is cached for 12 hours. **Save this field** keeps it for next time.
 3. Read top to bottom: *Right now → Things to consider → Your season → Your field from space → What's grown around you → What has changed here → Crops in your climate (with Crops then and now) → Your rotation → Where does this come from?*

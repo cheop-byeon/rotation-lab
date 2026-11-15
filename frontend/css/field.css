@@ -210,3 +210,12 @@ footer { text-align: center; color: var(--ink-2); font-size: .85rem; padding: 0 
 .evidence th, .evidence td { padding: 4px 6px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
 .evidence th:first-child, .evidence td:first-child { text-align: left; }
 @media (max-width: 520px) { .crop-bars li { grid-template-columns: minmax(0, 8rem) 1fr auto; } .area-map { height: 300px; } }
+
+/* ---------------- overview: one topic at a time */
+.tabs { position: sticky; top: 62px; z-index: 900; display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin: 0 0 16px; padding: 4px; background: var(--bg); border: 2px solid var(--line); border-radius: 14px; }
+.tabs button { min-height: 44px; border: 0; border-radius: 10px; background: transparent; color: var(--ink-2); font: inherit; font-weight: 700; font-size: .95rem; cursor: pointer; }
+.tabs button[aria-selected="true"] { background: var(--green); color: #fff; }
+details.more { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 10px; }
+details.more > summary { cursor: pointer; font-weight: 700; color: var(--green); }
+@media (max-width: 420px) { .tabs button { font-size: .85rem; } }
+@media print { .tabs { display: none; } [data-panel][hidden] { display: block !important; } }

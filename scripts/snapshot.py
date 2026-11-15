@@ -35,7 +35,7 @@ def main(points):
         asyncio.run(weather(lat, lon))
         record = hls.field_record(f["boundary"], seasons=None)
         print(f"{f['name']} HLS: {record['stats']['images_found']} images, {record['stats']['clear_images']} clear ({record['delivery']})")
-        zones = hls.field_zones(f["boundary"])
+        zones = hls.field_zones(f["boundary"], seasons=hls.ZONE_SEASONS)  # the same seasons the views ask for
         print(f"{f['name']} zones: {zones.get('status')} ({zones.get('delivery')})")
         print("saved", hls.save_snapshot(f["boundary"], zones))
         nb = neighbourhood.neighbourhood(f["boundary"])

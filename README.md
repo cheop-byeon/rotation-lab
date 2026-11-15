@@ -111,6 +111,16 @@ All field-view text is in `frontend/js/i18n/en.js`. To add a language, copy it (
 `{placeholders}`), and import it in `frontend/js/field.js` in place of `en`. Dates and month names follow the file's `locale`.
 Advisories reach the field view as a language-neutral `code` plus `params` from the API, so they are phrased in the language file, not in the backend.
 
+### Hosted version (Vercel)
+
+The repo also deploys to Vercel as one Python function (`api/index.py`, `vercel.json`, root `requirements.txt`).
+Vercel project settings: **Root Directory empty** (the repo root) and **Framework Preset: Other**, so `vercel.json` applies.
+
+- **No raster library on Vercel:** Vercel's runtime lacks the GDAL system libraries `rasterio` needs (`libexpat.so.1`), so the root `requirements.txt` leaves it out and the app imports it only for live satellite reads. The demo fields run entirely from `data/snapshots` (records, zones and the area around the field, computed when the snapshots are made). NASA POWER weather is fetched live (~4 s, then cached per instance).
+- **Read-only code folder:** the SQLite cache lives in `/tmp` and is created when the app loads.
+- **Limits:** fields saved on the hosted site last only until that instance restarts; a newly outlined field gets a clear message instead of a live satellite read (which also could not finish within Vercel's 60 s limit). Use the laptop version (`./run.sh`) for new fields.
+- **Check it like Vercel does:** install only the root `requirements.txt` in a fresh environment, copy the repo read-only, and run with `VERCEL=1`.
+
 ### Offline demo
 
 Both demo fields work **without internet**:

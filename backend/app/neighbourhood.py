@@ -16,10 +16,6 @@ from pathlib import Path
 
 import httpx
 import numpy as np
-import rasterio
-from rasterio.features import geometry_mask
-from rasterio.warp import transform as warp_transform, transform_geom
-from rasterio.windows import from_bounds
 
 from . import hls
 from .db import connect
@@ -77,6 +73,9 @@ def classify(ndvi: np.ndarray, dates: list[date], lat: float) -> np.ndarray:
 
 # ---------------------------------------------------------------- reading
 def _read_area(item: dict, bbox: list[float], token: str) -> dict | None:
+    import rasterio  # only live reads need it (not installed on the hosted version)
+    from rasterio.warp import transform_geom
+    from rasterio.windows import from_bounds
     spec = hls.COLLECTIONS[item["collection"]]
     href = lambda band: f"{item['assets'][band]['href']}?{token}"  # noqa: E731
     with rasterio.Env(**hls.GDAL_ENV):
@@ -102,6 +101,9 @@ def _read_area(item: dict, bbox: list[float], token: str) -> dict | None:
 
 def _farmland(bbox, crs, tf, shape, client) -> tuple[np.ndarray, int]:
     """True for 30 m pixels where most of the 10 m WorldCover 2021 cells inside are cropland or grassland."""
+    import rasterio
+    from rasterio.warp import transform as warp_transform
+    from rasterio.windows import from_bounds
     r = client.post(hls.STAC_SEARCH, json={"collections": [WORLDCOVER], "intersects": _poly(bbox), "limit": 10})
     items = sorted((f for f in r.json().get("features", []) if "2021" in f["id"]), key=lambda f: f["id"])
     if not items:
@@ -163,6 +165,7 @@ def _summarise(cls_by_season, farm, labels):
 
 def _cells(cls, farm, crs, tf, step=3):
     """Latest usable season as 90 m cells (majority class of the farmland pixels inside), for the map."""
+    from rasterio.warp import transform as warp_transform
     a, _, c, _, e, f = tf
     rows, cols = cls.shape
     feats = []
@@ -197,12 +200,18 @@ def neighbourhood(geom: dict, today: date | None = None, workers: int = 12) -> d
         return {"status": "unavailable", "reason": "Crop-type hints are calibrated for temperate seasons only."}
     start, end = hls.season_range(lat, None, today)
     key = f"{_key(geom)}:{end[:7]}"
+    if hls._snapshot_first() and _snap(geom).exists():
+        return {**json.loads(_snap(geom).read_text()), "delivery": "snapshot"}
     with connect() as con:
         row = con.execute("SELECT payload FROM hls_cache WHERE key = ?", (key,)).fetchone()
     if row:
         return {**json.loads(row[0]), "delivery": "cache"}
     bbox = area_bbox(lat, lon)
     t0 = time.time()
+    hls._require_rasterio()
+    import rasterio
+    from rasterio.features import geometry_mask
+    from rasterio.warp import transform_geom
     try:
         with httpx.Client(timeout=httpx.Timeout(60.0, connect=10.0)) as client:
             items = hls.search(_poly(bbox), start, end, client)

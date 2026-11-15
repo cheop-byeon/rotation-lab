@@ -45,6 +45,11 @@ def _startup() -> None:
     init_db()
 
 
+# Serverless runtimes may skip ASGI startup events, so make sure the tables exist as soon as the app is imported
+# (init_db is idempotent).
+init_db()
+
+
 # ------------------------------------------------------------------ models
 class FieldIn(BaseModel):
     name: str = Field(min_length=1, max_length=80)

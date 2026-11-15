@@ -7,7 +7,11 @@ import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
 
-DB_PATH = Path(os.environ.get("ROTATION_LAB_DB", Path(__file__).resolve().parents[2] / "data" / "rotation_lab.db"))
+# On Vercel (and other serverless hosts) the code folder is read-only: keep the database in /tmp. It is a per-instance
+# cache there, so saved fields do not persist between cold starts; the demo fields are recreated on every start.
+SERVERLESS = bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
+_default_db = Path("/tmp/rotation_lab.db") if SERVERLESS else Path(__file__).resolve().parents[2] / "data" / "rotation_lab.db"
+DB_PATH = Path(os.environ.get("ROTATION_LAB_DB", _default_db))
 
 # Illustrative demo field: a real grass field east of Stjørdal (Trøndelag, Norway), outlined on imagery.
 # Location and outline are real; soil, drainage, irrigation and crop are made-up example values.

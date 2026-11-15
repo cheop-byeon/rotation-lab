@@ -1,0 +1,6 @@
+# Hosted deployments (Vercel reads this file). No rasterio: Vercel lacks the GDAL system libraries it needs, so the
+# hosted version serves the demo fields from data/snapshots. Local development, live reads, snapshots: backend/requirements.txt.
+fastapi==0.115.6
+httpx==0.28.1
+pydantic==2.10.4
+numpy==2.1.3

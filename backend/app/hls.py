@@ -17,16 +17,13 @@ import hashlib
 import json
 import calendar
 import math
+import os
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime
 
 import httpx
 import numpy as np
-import rasterio
-from rasterio.features import geometry_mask
-from rasterio.warp import transform_geom
-from rasterio.windows import from_bounds
 
 from pathlib import Path
 
@@ -184,6 +181,10 @@ def _clear(fmask: np.ndarray) -> np.ndarray:
 
 
 def read_item(item: dict, geom: dict, token: str) -> dict:
+    import rasterio  # imported here: only live reads need it (it is not installed on the hosted version)
+    from rasterio.features import geometry_mask
+    from rasterio.warp import transform_geom
+    from rasterio.windows import from_bounds
     spec = COLLECTIONS[item["collection"]]
     href = lambda band: f"{item['assets'][band]['href']}?{token}"  # noqa: E731
     obs = {"id": item["id"], "date": item["properties"]["datetime"][:10], "sensor": spec["sensor"],
@@ -227,6 +228,10 @@ def read_item(item: dict, geom: dict, token: str) -> dict:
 # ---------------------------------------------------------------- per-pixel reading (productivity zones)
 def read_item_pixels(item: dict, geom: dict, token: str) -> dict:
     """EVI per clear pixel inside the field, on the image's native 30 m MGRS grid."""
+    import rasterio  # imported here: only live reads need it (it is not installed on the hosted version)
+    from rasterio.features import geometry_mask
+    from rasterio.warp import transform_geom
+    from rasterio.windows import from_bounds
     spec = COLLECTIONS[item["collection"]]
     href = lambda band: f"{item['assets'][band]['href']}?{token}"  # noqa: E731
     out = {"id": item["id"], "date": item["properties"]["datetime"][:10], "tile": item["id"].split(".")[2], "evi": None}
@@ -267,8 +272,9 @@ MAX_ZONE_PIXELS = 3000             # ≈ 270 ha at 30 m
 
 def compute_zones(px_obs: list[dict], geom: dict, lat: float) -> dict:
     """Per pixel: peak EVI each season relative to the field median, averaged over seasons."""
+    from rasterio.features import geometry_mask
     from rasterio.transform import Affine
-    from rasterio.warp import transform as warp
+    from rasterio.warp import transform as warp, transform_geom
 
     good = [o for o in px_obs if o.get("evi") is not None]
     if not good:
@@ -361,6 +367,14 @@ def field_zones(geom: dict, seasons: int | None = None, today: date | None = Non
     bkey = boundary_key(geom)
     prefix = f"px:{bkey}:"
     t0 = time.time()
+    if _snapshot_first() and _snapshot_path(bkey).exists():
+        saved = json.loads(_snapshot_path(bkey).read_text())
+        if saved.get("zones"):  # computed when the snapshot was made, so no raster library is needed here
+            return {**saved["zones"], "delivery": "snapshot", "seconds": round(time.time() - t0, 1)}
+        px = [o for o in saved.get("pixels", [])
+              if start <= o["date"] <= end and in_growing_months(date.fromisoformat(o["date"]), lat)]
+        if px:
+            return {**compute_zones(px, geom, lat), "delivery": "snapshot", "seconds": round(time.time() - t0, 1)}
     try:
         with httpx.Client(timeout=httpx.Timeout(60.0, connect=10.0)) as client:
             items = search(geom, start, end, client)
@@ -379,6 +393,8 @@ def field_zones(geom: dict, seasons: int | None = None, today: date | None = Non
     keys = {it["id"]: prefix + it["id"] for it in items}
     cached = _cache_get(list(keys.values()))
     todo = [it for it in items if keys[it["id"]] not in cached]
+    if todo:
+        _require_rasterio()
 
     def work(it):
         try:
@@ -418,7 +434,7 @@ def _snapshot_path(bkey: str) -> Path:
     return SNAPSHOT_DIR / f"hls_{bkey}.json"
 
 
-def save_snapshot(geom: dict) -> Path | None:
+def save_snapshot(geom: dict, zones: dict | None = None) -> Path | None:
     """Copy every cached image reading for this outline into data/snapshots (for offline demos)."""
     bkey = boundary_key(geom)
     obs = _cache_for_boundary(bkey)
@@ -428,7 +444,8 @@ def save_snapshot(geom: dict) -> Path | None:
     path = _snapshot_path(bkey)
     with connect() as con:
         pixels = [json.loads(p) for (p,) in con.execute("SELECT payload FROM hls_cache WHERE key LIKE ?", (f"px:{bkey}:%",))]
-    path.write_text(json.dumps({"saved_at": time.time(), "boundary": geom, "observations": obs, "pixels": pixels}))
+    path.write_text(json.dumps({"saved_at": time.time(), "boundary": geom, "observations": obs, "pixels": pixels,
+                                "zones": {k: v for k, v in (zones or {}).items() if k not in ("delivery", "seconds")} or None}))
     return path
 
 
@@ -699,12 +716,31 @@ def summarise_season(obs: list[dict]) -> dict:
             "peak_ndmi": max(o["ndmi"] for o in good if o["ndmi"] is not None)}
 
 
+def _require_rasterio() -> None:
+    try:
+        import rasterio  # noqa: F401
+    except ImportError as exc:  # the hosted version ships without it (Vercel lacks the GDAL system libraries)
+        raise HLSUnavailable("Live satellite reading is not available on the hosted version: use the demo fields, or run "
+                             "Rotation Lab on a laptop to read a new field.") from exc
+
+
+def _snapshot_first() -> bool:
+    """On serverless hosts a live read of hundreds of images outlasts the function time limit: use saved copies first."""
+    from .db import SERVERLESS
+    return SERVERLESS or bool(os.environ.get("ROTATION_LAB_SNAPSHOT_FIRST"))
+
+
 def field_record(geom: dict, seasons: int | None = None, today: date | None = None, workers: int = 12) -> dict:
     today = today or date.today()
     lat, lon = centroid(geom)
     start, end = season_range(lat, seasons, today)
     t0 = time.time()
     bkey = boundary_key(geom)
+    if _snapshot_first() and _snapshot_path(bkey).exists():
+        snap = [o for o in json.loads(_snapshot_path(bkey).read_text())["observations"]
+                if start <= o["date"] <= end and in_growing_months(date.fromisoformat(o["date"]), lat)]
+        return _assemble(geom, bkey, lat, lon, start, end, snap, "snapshot",
+                         {"images_found": len(snap), "images_read_now": 0, "images_from_cache": len(snap), "images_failed": 0}, t0)
     try:
         with httpx.Client(timeout=httpx.Timeout(60.0, connect=10.0)) as client:
             items = search(geom, start, end, client)
@@ -725,6 +761,8 @@ def field_record(geom: dict, seasons: int | None = None, today: date | None = No
     keys = {it["id"]: f"{bkey}:{it['id']}" for it in items}
     cached = {k: v for k, v in _cache_get(list(keys.values())).items() if "evi" in v or v["ndvi"] is None}
     todo = [it for it in items if keys[it["id"]] not in cached]  # readings cached before EVI was added are re-read once
+    if todo:
+        _require_rasterio()
     fresh, failed = [], 0
 
     def work(it):

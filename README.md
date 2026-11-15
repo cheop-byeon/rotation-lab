@@ -70,7 +70,7 @@ If port 8000 is already in use, pick another port with `PORT=…`.
 ### Using the app
 
 The app has two levels: **an area** (a municipality) and **a piece of farm land** in it. A trail at the top (*All areas › Stjørdal › Farm land in Stjørdal*) shows where you are and leads back up.
-For a piece of land, **Simple / Detailed** at the top right switches between the plain-language view (`/field`) and the full charts and tables (`/data`) of the *same* land: both read the same address (`?field=<id>` for a saved field, or `?lat=&lon=&place=&area=` for a spot opened from the area view) and fill it from the same public records (`frontend/js/records.js`).
+For a piece of land, **Overview / Evidence** at the top right switches between the plain-language view (`/field`) and the full charts and tables (`/data`) of the *same* land: both read the same address (`?field=<id>` for a saved field, or `?lat=&lon=&place=&area=` for a spot opened from the area view) and fill it from the same public records (`frontend/js/records.js`).
 
 **Area view (`/`, the start page)** is for anyone who does not know the land, for example a supplier of fertiliser or machinery. Type a municipality (or pick one of the largest farming areas) and one page answers three questions:
 1. **What farms grow:** each crop group's share of arable land in 2026, and whether it has changed steadily since 2017. A change is named only when the whole record trends the same way (Theil–Sen, Mann–Kendall p < 0.05) and moves at least 3 percentage points. In Stjørdal, for example, barley fell from 44% to 36% and wheat rose from 3% to 6%; grass, oats and potatoes show no steady change.
@@ -95,7 +95,7 @@ The demo field **Stjørdal 01** (Trøndelag, Norway) loads automatically. It is 
 Each field-view card ends with **See the evidence in the data view**, which opens the data view on the same field at the matching section (e.g. `/data?field=1#crop-then-now`). Field ids depend on the database: on a fresh install and on Vercel, the Stjørdal demo is 1.
 An unsaved field is passed as its location; save it to keep it, with its outline, in both views.
 
-**Simple view (`/field`)**
+**Overview (`/field`)**
 1. Press **Choose my field**, tap the field on the map (or *Use my location*), and tap your soil, drainage, irrigation and this year's crop.
 2. Press **Show my field**. A new location takes ~3–5 s the first time, then it is cached for 12 hours. **Save this field** keeps it for next time.
 3. Read top to bottom: *Right now → Things to consider → Your season → Your field from space → What's grown around you → What has changed here → Crops in your climate (with Crops then and now) → Your rotation → Where does this come from?*
@@ -109,7 +109,7 @@ An unsaved field is passed as its location; save it to keep it, with its outline
 toolbar (the satellite overlay fades while you trace). The outline is saved with the field (0.3–2000 ha). The first satellite read
 takes ~20–120 s for every season since 2020 (it depends on how many images cover the field), and the area around it ~80 s; then both are cached.
 
-**Detailed view (`/data`)**
+**Evidence (`/data`)**
 1. Click the map (or type `lat, lon` into *Go to*, or *Use my location*), set the field inputs and press **Analyze field**. Switch satellite layers and dates in the map toolbar.
 2. Scroll through conditions, briefing, trends, then and now, the satellite crop record, what's grown around the field, crop suitability, the rotation planner, the season log and data provenance.
    *Download daily CSV* in the provenance section exports the raw data used.

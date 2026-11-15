@@ -10,7 +10,7 @@ export default {
   app: {
     tagline: 'Ten years of NASA weather records for your field, at a glance.',
     viewArea: 'Area view', viewField: 'Field view', viewData: 'Data view',
-    why: 'See the details →',
+    why: 'See the evidence →',
     loading: 'Getting 10 years of NASA weather for your field…',
     failed: 'Could not load the data: {error}',
     print: 'Print or save this page',
@@ -124,7 +124,7 @@ export default {
     blightNote: 'Blight-weather days are a daily stand-in for the official hourly rules. For spraying decisions, use the national warning service (VIPS in Norway).',
     failed: 'Could not check this crop: {error}',
   },
-  nav: { allAreas: 'All areas', simple: 'Simple', detailed: 'Detailed' },
+  nav: { allAreas: 'All areas', overview: 'Overview', evidence: 'Evidence' },
   area: {
     tagline: 'Farming in any Norwegian municipality, from public records.',
     findTitle: 'Choose a place',

@@ -39,7 +39,7 @@ function fillForm(f) {
   drawer?.set(state.boundary);
 }
 
-// "All areas › <area> › <this land>", and the Simple link back to the same land.
+// "All areas › <area> › <this land>", and the Overview link back to the same land.
 async function renderCrumbs(f) {
   $('crumb-here').textContent = f.name;
   const a = await areaOf(f);

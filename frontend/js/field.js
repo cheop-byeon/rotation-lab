@@ -785,6 +785,7 @@ async function boot() {
     const [cat, fields] = await Promise.all([api.crops(), api.fields()]);
     state.catalog = cat.crops; state.fields = fields;
     const qs = new URLSearchParams(location.search);
+    const wantsChange = location.hash === '#change';  // "Change field" from the evidence page opens the editor
     const want = Number(qs.get('field'));  // ?field=<id> opens that field (handy for demos)
     // ?lat=&lon=&place=&area= (a farm dot in the area view) opens that spot's land, filled from public records.
     const spot = spotFromUrl(qs);
@@ -792,6 +793,7 @@ async function boot() {
       || fields.find((f) => f.id === want) || fields.find((f) => !f.demo) || fields[0] || null;
     renderField();
     if (state.field) analyze(state.field); else openChooser();
+    if (wantsChange && state.field) { openChooser(); $('chooser').scrollIntoView({ block: 'start' }); }
   } catch (e) {
     $('loading').className = 'loading error';
     $('loading').textContent = t('app.failed', { error: e.message });

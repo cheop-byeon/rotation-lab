@@ -112,6 +112,8 @@ toolbar (the satellite overlay fades while you trace). The outline is saved with
 takes ~20–120 s for every season since 2020 (it depends on how many images cover the field), and the area around it ~80 s; then both are cached.
 
 **Evidence (`/data`)**
+
+The evidence page uses the same four tabs as the overview (**Now**: conditions, briefing, the last twelve months and the season log; **From space**: the satellite layer map, the field's satellite record and what is grown around it; **Climate**: then and now, crops in this climate; **Plan**: the rotation), so *See the evidence* on an overview tab opens the matching evidence tab at that section. The top shows the land read-only (name, area, soil, drainage, irrigation, last crop); **Change field** opens the editor in the overview, so a field is edited in one place. Each tab ends with *Sources for this tab*.
 1. Click the map (or type `lat, lon` into *Go to*, or *Use my location*), set the field inputs and press **Analyze field**. Switch satellite layers and dates in the map toolbar.
 2. Scroll through conditions, briefing, trends, then and now, the satellite crop record, what's grown around the field, crop suitability, the rotation planner, the season log and data provenance.
    *Download daily CSV* in the provenance section exports the raw data used.

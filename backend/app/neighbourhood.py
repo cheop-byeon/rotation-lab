@@ -51,6 +51,7 @@ def classify(ndvi: np.ndarray, dates: list[date], lat: float) -> np.ndarray:
     early = np.array([hls.EARLY[0] <= m <= hls.EARLY[1] for m in md])
     late = np.array([hls.LATE[0] <= m <= hls.LATE[1] for m in md])
     before_aug = np.array([m < (8, 1) for m in md])
+    summer = np.array([hls.SUMMER[0] <= m <= hls.SUMMER[1] for m in md])
     ok = ~np.isnan(ndvi)
     n_good, n_early, n_late = ok.sum(0), ok[early].sum(0), ok[late].sum(0)
     e = np.nanmedian(ndvi[early], 0) if early.any() else np.full(ndvi.shape[1], np.nan)
@@ -63,6 +64,12 @@ def classify(ndvi: np.ndarray, dates: list[date], lat: float) -> np.ndarray:
     out[e < hls.BARE] = np.where(before_aug[peak_i], 4, 5)[e < hls.BARE]
     green = e >= hls.GREEN
     out[green] = np.where(np.isnan(lmax), 0, np.where(lmax >= 0.45, 2, 3))[green]
+    # grass/ley that missed the early test: never below green in late summer, still green in autumn (see hls.crop_hint)
+    n_sum = ok[summer].sum(0)
+    lmed = np.nanmedian(ndvi[late], 0) if late.any() else np.full(ndvi.shape[1], np.nan)
+    smin = np.nanmin(ndvi[summer], 0) if summer.any() else np.full(ndvi.shape[1], np.nan)
+    stays = (n_late >= 2) & (n_sum >= 2) & (lmed >= hls.GREEN) & (smin >= hls.GREEN)
+    out[((out == 5) | (out == 6)) & stays] = 2
     out[peak < hls.GREEN] = 1
     out[(n_good < 6) | (n_early < 2)] = 0
     return out

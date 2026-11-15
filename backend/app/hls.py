@@ -443,6 +443,7 @@ def _cache_put(rows: list[tuple[str, dict]]) -> None:
 # Dates are expressed in "northern" months: southern-hemisphere dates are shifted by six months.
 EARLY = ((4, 15), (5, 25))   # late April – late May: is the field already green?
 LATE = ((9, 10), (10, 31))   # September – October: is it still green after summer?
+SUMMER = ((7, 20), (9, 9))   # late July – early September: when cereals are harvested and grass keeps growing
 GREEN, BARE = 0.5, 0.4
 
 
@@ -477,6 +478,13 @@ def crop_hint(obs: list[dict], lat: float) -> dict:
         kind = "spring_crop" if pm < (8, 1) else "late_crop"
     else:
         kind = "unclear"
+    # Northern leys green up late after snow and are cut, so they can miss the early test. A curve that never drops
+    # below green through late summer and is still green in autumn has had no harvest: grass or ley (incl. newly sown).
+    if kind in ("unclear", "late_crop"):
+        summer = window(SUMMER)
+        if len(late) >= 2 and len(summer) >= 2 and float(np.median(late)) >= GREEN and min(summer) >= GREEN:
+            kind = "grass"
+            ev += f"; stayed green all summer (lowest {min(summer):.2f}) and into autumn (median {float(np.median(late)):.2f})"
     return {"type": kind, "evidence": ev}
 
 
@@ -699,6 +707,7 @@ def _assemble(geom, bkey, lat, lon, start, end, all_obs, delivery, counts, t0) -
                    "growing_months": "Apr–Oct (north), Oct–Apr (south), all year (tropics)",
                    "crop_hint": "Rules on the curve: green in late Apr–May and again in Sep–Oct (highest value) = grass/ley; green in spring, bare in autumn = "
                                 "winter-sown; bare in spring, peak before Aug = spring-sown; peak Aug or later = late crop; "
-                                "peak NDVI < 0.5 = bare/fallow/failed. Temperate only; southern dates shifted six months."},
+                                "peak NDVI < 0.5 = bare/fallow/failed; an unclear or late curve that never drops below 0.5 from late July to "
+                     "early September and is still ≥ 0.5 in Sep–Oct = grass/ley (no harvest). Temperate only; southern dates shifted six months."},
         "attribution": ATTRIBUTION,
     }

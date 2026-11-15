@@ -1,0 +1,6 @@
+# Runtime dependencies for hosted deployments (Vercel reads this file). Local development: backend/requirements.txt.
+fastapi==0.115.6
+httpx==0.28.1
+pydantic==2.10.4
+rasterio==1.4.3
+numpy==2.1.3

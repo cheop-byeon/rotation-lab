@@ -197,6 +197,8 @@ def neighbourhood(geom: dict, today: date | None = None, workers: int = 12) -> d
         return {"status": "unavailable", "reason": "Crop-type hints are calibrated for temperate seasons only."}
     start, end = hls.season_range(lat, None, today)
     key = f"{_key(geom)}:{end[:7]}"
+    if hls._snapshot_first() and _snap(geom).exists():
+        return {**json.loads(_snap(geom).read_text()), "delivery": "snapshot"}
     with connect() as con:
         row = con.execute("SELECT payload FROM hls_cache WHERE key = ?", (key,)).fetchone()
     if row:

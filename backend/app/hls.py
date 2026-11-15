@@ -17,6 +17,7 @@ import hashlib
 import json
 import calendar
 import math
+import os
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime
@@ -361,6 +362,11 @@ def field_zones(geom: dict, seasons: int | None = None, today: date | None = Non
     bkey = boundary_key(geom)
     prefix = f"px:{bkey}:"
     t0 = time.time()
+    if _snapshot_first() and _snapshot_path(bkey).exists():
+        px = [o for o in json.loads(_snapshot_path(bkey).read_text()).get("pixels", [])
+              if start <= o["date"] <= end and in_growing_months(date.fromisoformat(o["date"]), lat)]
+        if px:
+            return {**compute_zones(px, geom, lat), "delivery": "snapshot", "seconds": round(time.time() - t0, 1)}
     try:
         with httpx.Client(timeout=httpx.Timeout(60.0, connect=10.0)) as client:
             items = search(geom, start, end, client)
@@ -699,12 +705,23 @@ def summarise_season(obs: list[dict]) -> dict:
             "peak_ndmi": max(o["ndmi"] for o in good if o["ndmi"] is not None)}
 
 
+def _snapshot_first() -> bool:
+    """On serverless hosts a live read of hundreds of images outlasts the function time limit: use saved copies first."""
+    from .db import SERVERLESS
+    return SERVERLESS or bool(os.environ.get("ROTATION_LAB_SNAPSHOT_FIRST"))
+
+
 def field_record(geom: dict, seasons: int | None = None, today: date | None = None, workers: int = 12) -> dict:
     today = today or date.today()
     lat, lon = centroid(geom)
     start, end = season_range(lat, seasons, today)
     t0 = time.time()
     bkey = boundary_key(geom)
+    if _snapshot_first() and _snapshot_path(bkey).exists():
+        snap = [o for o in json.loads(_snapshot_path(bkey).read_text())["observations"]
+                if start <= o["date"] <= end and in_growing_months(date.fromisoformat(o["date"]), lat)]
+        return _assemble(geom, bkey, lat, lon, start, end, snap, "snapshot",
+                         {"images_found": len(snap), "images_read_now": 0, "images_from_cache": len(snap), "images_failed": 0}, t0)
     try:
         with httpx.Client(timeout=httpx.Timeout(60.0, connect=10.0)) as client:
             items = search(geom, start, end, client)

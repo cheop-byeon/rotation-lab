@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rotation Lab · NASA Space Apps 2026 · Field Shift</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Rotation Lab in brief — simple and calm; matches the app (slate, green accent, Inter) */
+:root {
+  --bg: #0E141B;
+  --bg2: #151D27;
+  --ink: #E7ECF2;
+  --ink2: #A3AEBD;
+  --muted: #7C8796;
+  --line: #263241;
+  --cyan: #4FD29A;
+  --mint: #A8E6C7;
+}
+
+section {
+  background: linear-gradient(160deg, #121A24 0%, #0E141B 55%);
+  color: var(--ink);
+  font-family: 'Inter', Arial, sans-serif;
+  font-size: 32px;
+  line-height: 1.35;
+  padding: 128px 128px 160px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 56px;
+  counter-increment: page;
+}
+section.alt { background: var(--bg2); }
+section.accent { background: var(--cyan); color: var(--bg); justify-content: center; padding: 128px; }
+section.center { justify-content: center; padding: 128px; }
+
+/* type scale: 112 / 64 / 40 / 32 / 24 */
+.display { font-size: 112px; font-weight: 700; line-height: 1.04; letter-spacing: -3px; }
+h2 { font-size: 64px; font-weight: 700; line-height: 1.1; letter-spacing: -1.5px; }
+h3 { font-size: 40px; font-weight: 600; line-height: 1.15; }
+.body { font-size: 32px; color: var(--ink2); }
+.eyebrow { font-family: 'JetBrains Mono', 'Courier New', monospace; font-size: 24px; font-weight: 600; letter-spacing: 4px; color: var(--cyan); }
+.head { display: flex; flex-direction: column; gap: 16px; }
+
+/* numbered statements */
+.points { display: flex; flex-direction: column; gap: 40px; }
+.point { display: grid; grid-template-columns: 120px 1fr; align-items: baseline; }
+.point .n { font-family: 'JetBrains Mono', 'Courier New', monospace; font-size: 40px; font-weight: 600; color: var(--cyan); }
+.point .t { font-size: 40px; font-weight: 500; line-height: 1.25; }
+
+/* cards */
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
+.grid4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 32px; }
+.card { background: var(--bg2); border: 2px solid var(--line); border-radius: 24px; padding: 40px; display: flex; flex-direction: column; gap: 12px; }
+.alt .card { background: var(--bg); }
+.card .tag { font-family: 'JetBrains Mono', 'Courier New', monospace; font-size: 24px; letter-spacing: 2px; color: var(--mint); }
+.card .body { font-size: 32px; }
+.note { font-size: 32px; color: var(--ink2); border-left: 4px solid var(--mint); padding-left: 28px; }
+
+/* footer */
+.foot { position: absolute; left: 128px; bottom: 64px; width: 1664px; display: flex; justify-content: space-between; }
+.foot p { font-family: 'JetBrains Mono', 'Courier New', monospace; font-size: 24px; color: var(--muted); letter-spacing: 2px; }
+.foot .pg::after { content: counter(page, decimal-leading-zero); }
+
+.art { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+
+/* arrivals: the plain rule is the finished look */
+.rise { animation: rise 640ms cubic-bezier(.2,.7,.2,1) both; animation-delay: calc(var(--i, 0) * 120ms); }
+@keyframes rise { from { opacity: 0; transform: translateY(24px); } }
+.fadein { animation: fadein 900ms ease-out both; }
+@keyframes fadein { from { opacity: 0; } }
+
+/* screenshot beside text */
+section.split { display: grid; grid-template-columns: 780px 1fr; gap: 72px; align-items: center; padding: 96px 128px 150px; }
+.shot { width: 780px; height: 832px; object-fit: contain; object-position: top; border-radius: 20px; border: 2px solid var(--line); background: #FFFDF8; }
+.side { display: flex; flex-direction: column; gap: 36px; }
+.side .points { gap: 28px; }
+.side .point { grid-template-columns: 72px 1fr; }
+.side .point .t { font-size: 32px; font-weight: 500; }
+.side .point .n { font-size: 28px; }
+
+/* big numbers in cards */
+.card .big { font-size: 64px; font-weight: 700; line-height: 1.05; color: var(--cyan); letter-spacing: -1px; }
+.link { font-family: 'JetBrains Mono', 'Courier New', monospace; font-size: 36px; color: var(--cyan); }
+
+/* standalone page: one 1920×1080 slide per page, no entrance animations, notes hidden */
+*, *::before, *::after { box-sizing: border-box; }
+section p, section h1, section h2, section h3 { margin: 0; }
+@page { size: 1920px 1080px; margin: 0; }
+html, body { margin: 0; padding: 0; background: #0E141B; counter-reset: page; }
+section { position: relative; width: 1920px; height: 1080px; overflow: hidden; break-after: page; }
+.rise, .fadein { animation: none !important; opacity: 1 !important; transform: none !important; }
+aside { display: none; }
+@media screen { section { margin: 0 auto 24px; } }
+</style>
+</head>
+<body>
+<section id="cover" class="center" data-transition="fade">
+<svg class="art fadein" aria-label="A satellite passing over a patchwork of fields, one field outlined in green" width="1920" height="1080" viewBox="0 0 1920 1080">
+<g transform="translate(1520 560) rotate(-12) translate(-220 -180)">
+<g stroke="#0E141B" stroke-width="6">
+<path d="M0 0H150V110H0Z" fill="#3E5A3A"/><path d="M150 0H280V90H150Z" fill="#7A6A44"/><path d="M280 0H440V130H280Z" fill="#4E7A45"/>
+<path d="M0 110H130V240H0Z" fill="#8C7A4E"/><path d="M130 90H280V240H130Z" fill="#2E6E4A"/><path d="M280 130H440V240H280Z" fill="#6B5E3E"/>
+<path d="M0 240H200V360H0Z" fill="#4E7A45"/><path d="M200 240H440V360H200Z" fill="#7A6A44"/>
+</g>
+<path d="M136 96H274V234H136Z" fill="none" stroke="#4FD29A" stroke-width="7"/>
+</g>
+<ellipse cx="1520" cy="560" rx="340" ry="115" fill="none" stroke="#4FD29A" stroke-opacity=".45" stroke-width="3" stroke-dasharray="6 14" transform="rotate(-14 1520 560)"/>
+<g transform="rotate(-14 1520 560)"><g transform="translate(1180 560)"><rect x="-11" y="-11" width="22" height="22" rx="3" fill="#E7ECF2"/><rect x="-48" y="-6" width="32" height="12" fill="#2e98c4"/><rect x="16" y="-6" width="32" height="12" fill="#2e98c4"/></g></g>
+</svg>
+<p class="eyebrow rise" style="--i:0">NASA SPACE APPS 2026 · FIELD SHIFT</p>
+<p class="display rise" style="--i:1;width:1000px">Rotation Lab</p>
+<p class="body rise" style="--i:2;width:980px;font-size:40px;color:#4FD29A">Evidence for what to plant, when, and in what order, from 45 years of NASA weather and every satellite image of your field.</p>
+<aside>Hi, this is Rotation Lab, for the Field Shift challenge.
+
+Rotation Lab helps a farmer decide three things: what to plant, when to plant it, and in what order.
+
+It uses forty-five years of NASA weather, and every satellite picture of the farmer’s own field.
+
+The farmer still makes the decision. We just bring the evidence.</aside>
+</section>
+
+<section id="motivation">
+<div class="head">
+<p class="eyebrow rise" style="--i:0">THE CHALLENGE</p>
+<h2 class="rise" style="--i:1;width:1500px">One field, a shifting climate, and decisions that reach years ahead</h2>
+</div>
+<div class="points">
+<div class="point rise" style="--i:2"><p class="n">01</p><p class="t">This year’s crop shapes the soil, pests and yields of the years that follow.</p></div>
+<div class="point rise" style="--i:3"><p class="n">02</p><p class="t">Frosts, dry spells and heat no longer arrive when the farm was planned for them.</p></div>
+<div class="point rise" style="--i:4"><p class="n">03</p><p class="t">NASA has the records, but they are scattered and hard to turn into a decision for one field.</p></div>
+</div>
+<div class="foot"><p>ROTATION LAB</p><p class="pg"></p></div>
+<aside>Here is the problem.
+
+What you plant this year changes your soil, your pests and your harvests for the next few years.
+
+At the same time, the weather is changing. Frost, dry spells and heat don’t come when they used to.
+
+NASA has decades of data about this. But it’s spread out, and it’s hard to use it for one real field.
+
+So our question is simple: for this one field, what grows well, when should I plant, and in what order?</aside>
+</section>
+
+<section id="resources" class="alt" style="gap:40px">
+<div class="head">
+<p class="eyebrow rise" style="--i:0">HOW IT WORKS</p>
+<h2 class="rise" style="--i:1">Built on open NASA data</h2>
+</div>
+<div class="grid2">
+<div class="card rise" style="--i:2;padding:32px"><p class="tag">NASA POWER · DAILY · 1981–TODAY</p><h3>Weather and soil wetness</h3><p class="body">45 years of daily records for the field’s location.</p></div>
+<div class="card rise" style="--i:3;padding:32px;border-color:#4FD29A"><p class="tag">NASA HLS · 30 M · SINCE 2020</p><h3>The field’s satellite record</h3><p class="body">Every Landsat and Sentinel-2 image of the outlined field, clouds removed.</p></div>
+<div class="card rise" style="--i:4;padding:32px"><p class="tag">NASA POWER · CLIMATOLOGY</p><h3>Long-term normals</h3><p class="body">Is this month unusual for this place?</p></div>
+<div class="card rise" style="--i:5;padding:32px"><p class="tag">NASA GIBS</p><h3>Map layers</h3><p class="body">Greenness, soil moisture, rain and land temperature for context.</p></div>
+</div>
+<p class="note rise" style="--i:6">Plus FAO-56 crop science, ESA WorldCover for the farmland around the field, and what only the grower knows: outline, soil, drainage, irrigation, crops.</p>
+<div class="foot"><p>ROTATION LAB</p><p class="pg"></p></div>
+<aside>Everything runs on open NASA data.
+
+First, NASA POWER. It gives daily weather and soil moisture for the field, all the way back to 1981.
+
+Second, NASA HLS. These are satellite pictures from Landsat and Sentinel-2. We use every clear picture of the field since 2020.
+
+We also use long-term averages, to see if a month is normal or not. And NASA map layers, for context.
+
+The farmer adds what only they know: the shape of the field, the soil, and the crops.</aside>
+</section>
+
+<section id="space" class="split">
+<img class="shot fadein" style="--i:1" src="fv-oroshaza-space.png" alt="Field view for the Orosháza demo field: this season's greenness line falls below the shaded usual range for an autumn-sown crop in May and June, with notes on the 2022 and 2026 weak seasons and their weather">
+<div class="side">
+<div class="head">
+<p class="eyebrow rise" style="--i:0">THE FIELD FROM SPACE · HUNGARY</p>
+<h2 class="rise" style="--i:1">A weak season, and the weather behind it</h2>
+</div>
+<div class="points">
+<div class="point rise" style="--i:2"><p class="n">01</p><p class="t">2026 fell below this field’s usual range for an autumn-sown crop: 23% less green.</p></div>
+<div class="point rise" style="--i:3"><p class="n">02</p><p class="t">That season had the lowest rainfall in 11 years (119 mm, usually 324) and the most hot days.</p></div>
+<div class="point rise" style="--i:4"><p class="n">03</p><p class="t">2022 was 18% below too, in the longest dry spell on record. Both found from NASA data alone.</p></div>
+</div>
+<p class="note rise" style="--i:5">A crop is compared only with earlier seasons of the same crop.</p>
+</div>
+<div class="foot"><p>ROTATION LAB</p><p class="pg"></p></div>
+<aside>(Orosháza: say “OR-osh-haa-zah”.)
+
+Let me show you one real field. This one is in Hungary.
+
+The dark green line is this year. The light green band is what’s normal for this crop on this field.
+
+You can see this year dropped well below normal in May and June.
+
+The app flagged it: about twenty-three percent less green than usual.
+
+Then it checked the weather. That season had the lowest rain in eleven years, and the most hot days.
+
+It found the same thing in 2022, during a long dry spell.
+
+All of this comes from NASA data alone. And we only compare a crop with the same crop.</aside>
+</section>
+
+<section id="thennow">
+<div class="head">
+<p class="eyebrow rise" style="--i:0">THEN AND NOW · 1990s VS THE LAST TEN SEASONS</p>
+<h2 class="rise" style="--i:1">What has changed on these fields</h2>
+</div>
+<div class="grid4">
+<div class="card rise" style="--i:2"><p class="big">+18 days</p><p class="body">Frost-free season, Stjørdal, Norway (133 → 151)</p></div>
+<div class="card rise" style="--i:3"><p class="big">12 days</p><p class="body">earlier last spring frost, Stjørdal (25 May → 13 May)</p></div>
+<div class="card rise" style="--i:4"><p class="big">7 → 12</p><p class="body">potato blight-weather days a season, Stjørdal</p></div>
+<div class="card rise" style="--i:5"><p class="big">40 → 62</p><p class="body">days above 30 °C a season, Orosháza, Hungary</p></div>
+</div>
+<p class="note rise" style="--i:6">Stated only when the whole 1981–2025 record trends the same way. No good-or-bad labels: that depends on the grower’s crops.</p>
+<div class="foot"><p>ROTATION LAB</p><p class="pg"></p></div>
+<aside>(Stjørdal: say “STYUR-dahl”.)
+
+We also compare the 1990s with today.
+
+In Stjørdal, in Norway, the frost-free season is eighteen days longer. The last spring frost comes twelve days earlier. That’s good news for many crops.
+
+But for potatoes, the warm, wet weather that brings potato blight went up from about seven days to twelve days a season.
+
+In Hungary, days over thirty degrees went up from about forty to sixty-two.
+
+We only show a change when the whole forty-five years point the same way. And we don’t call it good or bad. That depends on the farmer’s crops.</aside>
+</section>
+
+<section id="trust" class="alt" style="gap:40px">
+<div class="head">
+<p class="eyebrow rise" style="--i:0">HONEST BY DESIGN</p>
+<h2 class="rise" style="--i:1">Evidence and options, not orders</h2>
+</div>
+<div class="grid2">
+<div class="card rise" style="--i:2;padding:32px"><p class="tag">CHECKED</p><h3>Against official statistics</h3><p class="body">Crops around Stjørdal vs Statistics Norway: grass 42% vs 46%, cereals 45% vs 52%.</p></div>
+<div class="card rise" style="--i:3;padding:32px"><p class="tag">SAYS WHEN IT CAN’T TELL</p><h3>No confident guesses</h3><p class="body">“Not judged”, “too few seasons”, “crops changed”, always with the reason.</p></div>
+<div class="card rise" style="--i:4;padding:32px"><p class="tag">GROWERS DECIDE</p><h3>Their plan, their call</h3><p class="body">Likely crops are hints; the grower’s own rotation is what gets checked.</p></div>
+<div class="card rise" style="--i:5;padding:32px"><p class="tag">TRACEABLE</p><h3>Every finding shows its evidence</h3><p class="body">Each result links to the charts and NASA records behind it.</p></div>
+</div>
+<div class="foot"><p>ROTATION LAB</p><p class="pg"></p></div>
+<aside>Why should you trust it?
+
+We checked our satellite crop map against official numbers from Statistics Norway. Grass and grain came within a few percent. That check also helped us find and fix a mistake.
+
+When the app is not sure, it says so, and it tells you why.
+
+It never gives orders. What we check is the farmer’s own plan.
+
+And every finding links to its evidence: the charts and the NASA records behind it. So you can check it yourself.</aside>
+</section>
+
+<section id="close" class="center" style="background:#0E141B">
+<svg class="art fadein" aria-label="A patchwork of fields with one outlined, under a satellite’s path" width="1920" height="1080" viewBox="0 0 1920 1080">
+<g transform="translate(1520 600) rotate(-12) translate(-220 -180)" opacity=".85">
+<g stroke="#0E141B" stroke-width="6">
+<path d="M0 0H150V110H0Z" fill="#3E5A3A"/><path d="M150 0H280V90H150Z" fill="#7A6A44"/><path d="M280 0H440V130H280Z" fill="#4E7A45"/>
+<path d="M0 110H130V240H0Z" fill="#8C7A4E"/><path d="M130 90H280V240H130Z" fill="#2E6E4A"/><path d="M280 130H440V240H280Z" fill="#6B5E3E"/>
+<path d="M0 240H200V360H0Z" fill="#4E7A45"/><path d="M200 240H440V360H200Z" fill="#7A6A44"/>
+</g>
+<path d="M136 96H274V234H136Z" fill="none" stroke="#4FD29A" stroke-width="7"/>
+</g>
+<ellipse cx="1520" cy="600" rx="340" ry="115" fill="none" stroke="#4FD29A" stroke-opacity=".4" stroke-width="3" stroke-dasharray="6 14" transform="rotate(-14 1520 600)"/>
+</svg>
+<p class="eyebrow rise" style="--i:0">TRY IT</p>
+<p class="display rise" style="--i:1;width:1100px">Read your field from space.</p>
+<p class="link rise" style="--i:2">rotation-lab-tawny.vercel.app</p>
+<p class="link rise" style="--i:3;color:#A3AEBD">github.com/cheop-byeon/rotation-lab</p>
+<aside>So that’s Rotation Lab. Read your field from space.
+
+You can try it right now: rotation-lab-tawny dot vercel dot app.
+
+The code is open on GitHub.
+
+Thank you! We’re happy to take your questions.</aside>
+</section>
+
+</body>
+</html>

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import calendar
 import math
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -484,40 +485,61 @@ MAX_GAP_DAYS = 40      # longest cloud gap allowed inside the core of the season
 MIN_TREND_SEASONS = 6
 
 
-def season_evi_mean(obs: list[dict], season: int, lat: float) -> float | None:
-    """Mean EVI over the growing window from a linearly interpolated curve (an area-under-curve proxy).
+# Growing window and its core, as northern (month, day), per likely crop. A winter cereal is harvested in July,
+# so averaging it over May–September would mostly measure stubble and harvest timing, not the crop.
+WINDOWS = {
+    "winter_crop": ((4, 1), (7, 15), (4, 10), (6, 20)),
+    "spring_crop": ((5, 1), (8, 31), (5, 25), (8, 10)),
+    "late_crop": ((5, 15), (10, 15), (6, 10), (9, 20)),
+    None: ((4, 1), (10, 31), (5, 15), (9, 15)),  # grass and anything not classified
+}
 
-    Interpolation avoids bias from when the clear images happened to fall. Seasons with a cloud gap
-    over MAX_GAP_DAYS inside the core of the window are skipped rather than guessed.
+
+def _season_date(season: int, md: tuple[int, int], lat: float) -> date:
+    m, d = md
+    if lat >= 0:
+        y = season
+    else:  # shift six months: northern April is southern October of the previous calendar year
+        y, m = (season, m - 6) if m >= 7 else (season - 1, m + 6)
+    return date(y, m, min(d, calendar.monthrange(y, m)[1]))
+
+
+def season_window(season: int, lat: float, crop: str | None = None) -> tuple[date, date, date, date]:
+    """(start, end, core start, core end) of the window used for a season's greenness."""
+    return tuple(_season_date(season, md, lat) for md in WINDOWS.get(crop, WINDOWS[None]))
+
+
+def max_gap(season: int, lat: float, crop: str | None = None) -> int:
+    _, _, ca, cb = season_window(season, lat, crop)
+    return min(MAX_GAP_DAYS, round(0.45 * (cb - ca).days))  # shorter windows tolerate shorter gaps
+
+
+def season_evi_mean(obs: list[dict], season: int, lat: float, crop: str | None = None) -> float | None:
+    """Mean EVI over the crop's growing window from a linearly interpolated curve (an area-under-curve proxy).
+
+    Interpolation avoids bias from when the clear images happened to fall. Seasons with a long cloud gap
+    inside the core of the window are skipped rather than guessed.
     """
     if abs(lat) < 23.5:
         return None
-    import datetime as _dt
-    if lat >= 0:
-        a, b, core_a, core_b = _dt.date(season, 4, 1), _dt.date(season, 10, 31), _dt.date(season, 5, 15), _dt.date(season, 9, 15)
-    else:
-        a, b, core_a, core_b = _dt.date(season - 1, 10, 1), _dt.date(season, 4, 30), _dt.date(season - 1, 11, 15), _dt.date(season, 3, 15)
+    a, b, core_a, core_b = season_window(season, lat, crop)
     pts = sorted((date.fromisoformat(o["date"]), o["evi"]) for o in obs if o.get("evi") is not None and a <= date.fromisoformat(o["date"]) <= b)
     if len(pts) < 8:
         return None
-    days = [d for d, _ in pts]
-    inner = [d for d in days if core_a <= d <= core_b]
-    edges = [core_a] + inner + [core_b]
-    if not inner or max((y - x).days for x, y in zip(edges, edges[1:])) > MAX_GAP_DAYS:
+    gap = core_gap_days(obs, season, lat, crop)
+    if gap is None or gap > max_gap(season, lat, crop):
         return None
-    t = np.array([(d - a).days for d in days], dtype=float)
+    t = np.array([(d - a).days for d, _ in pts], dtype=float)
     v = np.array([e for _, e in pts], dtype=float)
     grid = np.arange(0, (b - a).days + 1, dtype=float)
     return round(float(np.mean(np.interp(grid, t, v))), 4)  # flat beyond the first/last image
 
 
-def core_gap_days(obs: list[dict], season: int, lat: float) -> int | None:
+def core_gap_days(obs: list[dict], season: int, lat: float, crop: str | None = None) -> int | None:
     """Longest run without a clear EVI image inside the core of the season (for explaining skipped seasons)."""
     if abs(lat) < 23.5:
         return None
-    import datetime as _dt
-    core_a, core_b = ((_dt.date(season, 5, 15), _dt.date(season, 9, 15)) if lat >= 0
-                      else (_dt.date(season - 1, 11, 15), _dt.date(season, 3, 15)))
+    _, _, core_a, core_b = season_window(season, lat, crop)
     inner = sorted(date.fromisoformat(o["date"]) for o in obs if o.get("evi") is not None and core_a <= date.fromisoformat(o["date"]) <= core_b)
     edges = [core_a] + inner + [core_b]
     return max((y - x).days for x, y in zip(edges, edges[1:]))
@@ -542,31 +564,35 @@ def productivity_trend(season_list: list[dict]) -> dict:
     skipped = [{"season": s["season"], "gap_days": s.get("core_gap_days")} for s in season_list if s.get("season_evi_mean") is None]
     out = {"seasons": [{"season": a, "evi_mean": b, "crop": c} for a, b, c in pts], "skipped": skipped, "min_seasons": MIN_TREND_SEASONS,
            "max_gap_days": MAX_GAP_DAYS,
-           "method": "Season-long mean EVI (interpolated curve, growing window); Theil–Sen slope; Mann–Kendall test. "
-                     "A trend is reported only with p < 0.1 and a slope of at least 1% of the mean per year."}
+           "method": "Season-long mean EVI (interpolated curve over each likely crop's growing window); Theil–Sen slope; Mann–Kendall test. "
+                     "A trend is reported only with p < 0.1 and a slope of at least 1% of the mean per year, and only between seasons "
+                     "with the same likely crop when the crop changed."}
     if len(pts) < MIN_TREND_SEASONS:
         return {**out, "status": "too_few", "direction": None}
-    x, y = [p[0] for p in pts], [p[1] for p in pts]
-    mean = float(np.mean(y))
-    slope = _theil_sen(x, y)
-    pct = 100 * slope / mean
-    p = _mann_kendall_p(y)
-    direction = ("rising" if pct > 0 else "falling") if (p < 0.1 and abs(pct) >= 1) else "none"
-    out.update(status="ok", direction=direction, slope_per_year=round(slope, 4), pct_per_year=round(pct, 1),
-               p_value=round(p, 3), first=x[0], last=x[-1], n=len(pts))
-    b0 = float(np.median([b - slope * a for a, b in zip(x, y)]))
-    out["fit"] = [[a, round(b0 + slope * a, 4)] for a in (x[0], x[-1])]  # line endpoints (rounding the slope would shift the line)
-    # crop changes confound the overall trend: also report it among seasons with the same likely crop
-    kinds = [c for c in (p_[2] for p_ in pts) if c in ("grass", "spring_crop", "winter_crop", "late_crop")]
+    kinds = [c for _, _, c in pts if c in ("grass", "spring_crop", "winter_crop", "late_crop")]
+    # A perennial ley followed by cereals is "less green" without the field getting worse: with mixed crops the
+    # overall line is not a fair comparison, so only same-crop seasons are judged.
     if kinds:
         top = max(set(kinds), key=kinds.count)
         same = [(a, b) for a, b, c in pts if c == top]
         if len(same) >= 4:
-            xs, ys = [a for a, _ in same], [b for _, b in same]
-            s2 = _theil_sen(xs, ys)
-            out["same_crop"] = {"crop": top, "n": len(same), "pct_per_year": round(100 * s2 / float(np.mean(ys)), 1),
-                                "p_value": round(_mann_kendall_p(ys), 3)}
+            out["same_crop"] = {"crop": top, **_fit([a for a, _ in same], [b for _, b in same])}
+    mixed = len(set(kinds)) > 1 or len(kinds) < len(pts) - 1  # more than one crop type, or several seasons unclassified
+    if mixed:
+        return {**out, "status": "mixed_crops", "direction": None, "crops": sorted(set(kinds))}
+    out.update(status="ok", **_fit([p[0] for p in pts], [p[1] for p in pts]))
     return out
+
+
+def _fit(x: list[int], y: list[float]) -> dict:
+    slope = _theil_sen(x, y)
+    pct = 100 * slope / float(np.mean(y))
+    p = _mann_kendall_p(y)
+    b0 = float(np.median([b - slope * a for a, b in zip(x, y)]))
+    return {"direction": ("rising" if pct > 0 else "falling") if (p < 0.1 and abs(pct) >= 1) else "none",
+            "slope_per_year": round(slope, 4), "pct_per_year": round(pct, 1), "p_value": round(p, 3),
+            "first": x[0], "last": x[-1], "n": len(x),
+            "fit": [[a, round(b0 + slope * a, 4)] for a in (x[0], x[-1])]}  # endpoints: rounding the slope would shift the line
 
 
 # ---------------------------------------------------------------- summary
@@ -640,6 +666,8 @@ def field_record(geom: dict, seasons: int | None = None, today: date | None = No
 
 
 def _assemble(geom, bkey, lat, lon, start, end, all_obs, delivery, counts, t0) -> dict:
+    def hint_type(o):
+        return crop_hint(o, lat)["type"]
 
     # Same date + sensor from neighbouring tiles: keep the reading with the most clear pixels.
     best: dict[tuple, dict] = {}
@@ -654,7 +682,7 @@ def _assemble(geom, bkey, lat, lon, start, end, all_obs, delivery, counts, t0) -
         y, label = season_of(date.fromisoformat(o["date"]), lat)
         by_season.setdefault(y, {"season": y, "label": label, "obs": []})["obs"].append(o)
     season_list = [{"season": s["season"], "label": s["label"], **summarise_season(s["obs"]), "crop_hint": crop_hint(s["obs"], lat),
-                    "season_evi_mean": season_evi_mean(s["obs"], s["season"], lat), "core_gap_days": core_gap_days(s["obs"], s["season"], lat), "peak_evi": max((o["evi"] for o in s["obs"] if o.get("evi") is not None), default=None)}
+                    "season_evi_mean": season_evi_mean(s["obs"], s["season"], lat, hint_type(s["obs"])), "core_gap_days": core_gap_days(s["obs"], s["season"], lat, hint_type(s["obs"])), "window": [d.isoformat() for d in season_window(s["season"], lat, hint_type(s["obs"]))[:2]], "max_gap_days": max_gap(s["season"], lat, hint_type(s["obs"])), "peak_evi": max((o["evi"] for o in s["obs"] if o.get("evi") is not None), default=None)}
                    for s in sorted(by_season.values(), key=lambda s: s["season"])]
     return {
         "boundary_key": bkey, "area_ha": round(area_ha(geom), 2), "centroid": {"lat": round(lat, 5), "lon": round(lon, 5)},

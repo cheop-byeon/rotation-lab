@@ -78,6 +78,10 @@ real; its soil, drainage, irrigation and crop are **illustrative example values,
 Editing and saving it, or saving your own field, removes the label. (Databases created before this change have their old demo point,
 which sat on Værnes airport, moved automatically.)
 
+A second demo field, **Orosháza 01** (Békés county, Hungary), is rainfed arable land: a ~7 ha rectangle drawn inside a real field,
+with illustrative farm details. It shows the season check catching droughts from NASA data alone (2022 and 2026, below).
+The field view's demo note switches between the demo fields, and `/?field=<id>` opens a field directly (handy for recording a demo).
+
 **Field view (`/`)**
 1. Press **Choose my field**, tap the field on the map (or *Use my location*), and tap your soil, drainage, irrigation and this year's crop.
 2. Press **Show my field**. A new location takes ~3–5 s the first time, then it is cached for 12 hours. **Save this field** keeps it for next time.
@@ -105,10 +109,10 @@ Advisories reach the field view as a language-neutral `code` plus `params` from 
 
 ### Offline demo
 
-The demo field works **without internet**:
+Both demo fields work **without internet**:
 
-- **Weather:** dated copies of the NASA POWER responses for the demo field (`data/snapshots/daily_*.json`, `clim_*.json`).
-- **Satellite record:** every NASA HLS image reading for the demo outline (`data/snapshots/hls_*.json`).
+- **Weather:** dated copies of the NASA POWER responses for the demo fields (`data/snapshots/daily_*.json`, `clim_*.json`).
+- **Satellite record:** every NASA HLS image reading for the demo outlines, with per-pixel values for the zones (`data/snapshots/hls_*.json`).
 - **Libraries:** Leaflet and Chart.js are served from `frontend/vendor/` (copied from cdnjs and checked against its SRI hashes), not a CDN.
 
 When NASA POWER or the HLS catalogue can't be reached, the API serves the local cache, then these snapshots. It says so in the UI
@@ -121,7 +125,7 @@ overlays, and web fonts (system fonts are used instead). Open the demo once whil
 To refresh the snapshots before a presentation (or add weather for other points):
 
 ```sh
-.venv/bin/python scripts/snapshot.py                          # demo field: weather + satellite record
+.venv/bin/python scripts/snapshot.py                          # demo fields: weather + satellite record
 .venv/bin/python scripts/snapshot.py 63.46 10.92 -33.89 -60.57  # extra weather points (lat lon pairs)
 ```
 
@@ -202,7 +206,7 @@ The GIBS layers are for visual context. The numerical analysis uses NASA POWER o
   The data view switches the greenness chart between NDVI and EVI. The last five seasons are coloured, older ones grey.
 - **Archive:** the openly hosted HLS v2.0 collections start on **1 January 2020**, so the record covers every season from 2020 (seven seasons by 2026). NASA LP DAAC holds HLS back to 2013, but needs an Earthdata login, which the app avoids. The response says so (`archive.note`).
 - **Seasons:** every season in the archive (or the last *n* with `seasons`), growing months only (Apr–Oct north, Oct–Apr south, all year in the tropics). Per season: images, clear images, green-up date, peak NDVI and date, mean NDVI, peak NDMI. Green-up is reported as *hidden by cloud* when no clear image exists in the three weeks before it.
-- **Joined with weather:** the data view lines each satellite season up with the NASA POWER weather for the same season (rain, ET₀, longest dry spell, heat days). The field view names the least green season and checks whether that season's weather stands out. If all peaks are within 0.08 NDVI, it says no season stands out.
+- **Joined with weather:** the data view lines each satellite season up with the NASA POWER weather for the same season (rain, ET₀, longest dry spell, heat days). Both views then run the **season check** below.
 - **Crop-type hints:** each season's curve is labelled *grass / ley* (green in late April–May and again in Sep–Oct), *autumn-sown* (green in spring, bare in autumn), *spring-sown* (bare until late May, peak before August), *late crop* (peak in August or later), *bare / failed* (peak NDVI below 0.5), *unclear*, or *too cloudy*.
   Each hint carries its evidence. The rules are for temperate seasons; southern dates are shifted six months, and the tropics are not covered.
   The field view calls these "likely" crops and says they are hints, not records. If the latest season's pattern differs from the crop the grower entered, it says so as an observation.
@@ -216,11 +220,21 @@ The GIBS layers are for visual context. The numerical analysis uses NASA POWER o
   The zones are **uncalibrated**: satellite greenness, not measured yield. Both views say so.
   Inspired by DigiFarm's productivity zones, which are calibrated on Norwegian yield data; ours are not.
   **Download:** both views export the zone map as GeoJSON: one 30 m square per pixel with `zone` and `zone_id` (1 weaker, 2 average, 3 stronger, 0 edge), relative EVI and consistency, ready to load into farm-machinery or GIS software for variable-rate planning.
+- **Season check (crop stress, season level):** was a season clearly less green than the field's *other seasons with the same likely crop*, and did its weather stand out?
+  Each season's season-long EVI (see the trend below) is compared with the median of the field's other seasons with the same crop hint (at least 2). 10% or more below is flagged. Seasons with a cloud gap, an unclear crop or too few same-crop seasons are listed as not judged, with the reason.
+  For each season, the NASA POWER weather of that season is ranked against all ~10 seasons on record. Once the growing months are over (November in the north, May in the south), the current season is included too, marked "season so far". A factor "stands out" only when the season is among the 2 most extreme *and* clearly differs from the median: longest dry spell (+3 days), low rain (≤ 80%), high rain (≥ 125%), hot days (+2), cool season (GDD5 ≤ 92%), late spring frost (+7 days), dry or wet root zone (±0.05).
+  The wording is "coincides with", never "caused by". When the weather was normal, the field view says sowing, variety, field work or pests may explain it, and that the grower knows best.
+  Within-season dips are deliberately not flagged: grass cuts and harvests look exactly like damage from orbit.
+  **Tested on real fields:** on both Stjørdal fields no season is flagged (all within ±10% of the same-crop median).
+  On two rainfed fields near Orosháza, Hungary, it flagged **2022** (a likely lucerne stand 18% below its other lucerne years, during the longest dry spell in the record: 33 days against 23) and **2026** on both fields (23% below, during the lowest rainfall on record: 119 mm against 324, with the most hot days and the driest root zone). The 2026 flags were raised before the weather was attached, so satellite and weather agree independently.
+  Where a weak season has only one other same-crop season (a winter crop in 2022 on the second field, peak NDVI 0.76 against ~0.9), it is reported as not judged rather than guessed.
+  Inspired by DigiFarm's crop-damage indicator.
 - **Productivity trend:** is the field's season-long greenness rising or falling over the years?
-  Per season, the clear-image EVI values are interpolated into a daily curve and averaged over the growing window. A season is **skipped** when the core window (15 May–15 Sep, northern dates) has a cloud gap over 40 days or fewer than 8 clear images, because one missing month can move the mean more than any real trend. Skipped seasons are listed with their gap.
+  Per season, the clear-image EVI values are interpolated into a daily curve and averaged over **that season's likely crop's window** (northern dates; shifted six months in the south): winter crops 1 Apr–15 Jul (harvested in July, so the stubble after harvest is left out), spring crops 1 May–31 Aug, late crops 15 May–15 Oct, grass and unclassified 1 Apr–31 Oct.
+  A season is **skipped** when the core of that window has a long cloud gap (40 days, or 45% of the core for shorter windows) or fewer than 8 clear images, because one missing month can move the mean more than any real trend. Skipped seasons are listed with their gap.
   The slope is a **Theil–Sen** estimate (robust to one odd season), tested with **Mann–Kendall**. A trend is reported only with at least 6 usable seasons, p < 0.1 and a slope of at least 1% of the mean per year; otherwise it says "no clear trend" or "too few seasons".
-  Crop changes confound it (a ley is greener than a cereal), so it also reports the trend among seasons with the same likely crop when there are at least 4.
-  On the Stjørdal test fields: one has no clear trend (−0.8%/yr, p 0.45, 6 seasons); the demo field has too few complete seasons (2024 and 2026 lost 43–44 days of June to cloud).
+  **When the likely crop changes, no overall direction is given**: a perennial ley followed by cereals is "less green" without the field getting worse (on the Hungarian field the overall line read −13.8% a year, p = 0.007, purely from that change). Instead it reports the trend among seasons with the most common crop when there are at least 4, and the chart colours each season by its likely crop.
+  On the Stjørdal test fields: one has no clear trend across its 5 spring-crop seasons; the demo field has too few complete seasons (2024 and 2026 lost 43–44 days of June to cloud).
   Inspired by DigiFarm's sustainability index; with HLS from 2020 the record is short, so this is a first look, not a verdict.
 - **Cross-checks seen in testing (Stjørdal):** Sentinel-2 and Landsat values from the same day agree within about 0.02 NDVI, and emergence in early June matches the weather-based sowing window.
 - **Limits:** cloudy regions have gaps. A 30 m pixel needs fields of at least 0.3 ha, and edge pixels mix with the neighbouring land. NDVI differences between seasons also reflect *which crop* was grown.
@@ -256,6 +270,7 @@ backend/app/
   power.py           NASA POWER client: daily + climatology, retries, SQLite cache, snapshot fallback
   agro.py            agroclimatic engine: ET₀, GDD, frost dates, seasons, anomalies, soil-moisture percentiles, splice detection
   crops.py           crop catalog, crop-season simulation/suitability, rotation ranking
+  stress.py          season check: weak seasons vs same-crop seasons, and the weather that stood out
   hls.py             NASA HLS field record: STAC search, Fmask cloud masking, NDVI/NDMI per image, season summaries,
                      crop-type hints, EVI productivity zones, cache and offline snapshots
   advisor.py         rule-based advisories with evidence, plus language-neutral codes for the field view
@@ -269,7 +284,7 @@ scripts/snapshot.py  save offline copies of POWER data
 | `GET /api/analysis?lat&lon&soil&drainage&irrigation&previous_crop` | Full field analysis |
 | `POST /api/rotations/rank` | Rank rotations (optionally with the climate of `lat`/`lon`) |
 | `GET /api/layers` | NASA GIBS layer configuration |
-| `POST /api/vegetation` `{boundary, seasons}` | NASA HLS NDVI/NDMI/EVI record for a field outline (GeoJSON Polygon); `seasons` optional (default: all since 2020); includes the productivity `trend` |
+| `POST /api/vegetation` `{boundary, seasons}` | NASA HLS NDVI/NDMI/EVI record for a field outline (GeoJSON Polygon); `seasons` optional (default: all since 2020); includes the productivity `trend` and the `season_check` (joined with NASA POWER weather) |
 | `POST /api/zones` `{boundary, seasons}` | Productivity zones from multi-season HLS EVI (30 m pixels, GeoJSON cells) |
 | `GET /api/export.csv?lat&lon` | Daily NASA POWER data + ET₀ as CSV |
 | `GET/POST/PUT/DELETE /api/fields` | Saved fields |

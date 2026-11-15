@@ -308,13 +308,44 @@ const HINT_LABEL = { grass: 'Grass / ley', winter_crop: 'Autumn-sown', spring_cr
 function renderTrend(tr, archive) {
   renderTrendChart(tr);
   const fmt = (v) => `${v > 0 ? '+' : ''}${v}% a year`;
-  const verdict = tr.status !== 'ok' ? `Not enough complete seasons to judge a trend (${tr.seasons.length} of ${tr.min_seasons} needed).`
-    : tr.direction === 'none' ? `No clear trend: ${fmt(tr.pct_per_year)}, Mann–Kendall p = ${tr.p_value} (${tr.n} seasons).`
-    : `Season-long greenness is <b>${tr.direction}</b>: ${fmt(tr.pct_per_year)}, p = ${tr.p_value} (${tr.n} seasons).`;
-  const same = tr.same_crop ? `<dt>Same crop only</dt><dd>${esc(tr.same_crop.crop.replace('_', ' '))} seasons: ${fmt(tr.same_crop.pct_per_year)}, p = ${tr.same_crop.p_value} (${tr.same_crop.n})</dd>` : '';
+  const crop = (v) => esc((v || 'unclear').replace('_', ' '));
+  const say = (f, what) => f.direction === 'none' ? `no clear trend in ${what}: ${fmt(f.pct_per_year)}, Mann–Kendall p = ${f.p_value} (${f.n} seasons)`
+    : `${what} ${f.direction === 'rising' ? 'rising' : 'falling'}: <b>${fmt(f.pct_per_year)}</b>, p = ${f.p_value} (${f.n} seasons)`;
+  let verdict;
+  if (tr.status === 'too_few') verdict = `Not enough complete seasons to judge a trend (${tr.seasons.length} of ${tr.min_seasons} needed).`;
+  else if (tr.status === 'mixed_crops') {
+    verdict = `The likely crop changed over these seasons (${tr.crops.map(crop).join(', ')}), so an overall line would compare different crops. No overall direction is given.`;
+    verdict += tr.same_crop ? ` Among ${crop(tr.same_crop.crop)} seasons only: ${say(tr.same_crop, 'greenness')}.` : ' No crop has the 4 seasons needed for a same-crop trend yet.';
+  } else verdict = say(tr, 'season-long greenness').replace(/^./, (ch) => ch.toUpperCase()) + '.';
   const skipped = tr.skipped.length ? `<dt>Skipped</dt><dd>${tr.skipped.map((s) => `${s.season}${s.gap_days ? ` (${s.gap_days}-day cloud gap)` : ''}`).join(', ')}</dd>` : '';
-  $('trend-info').innerHTML = `<p style="margin:0 0 10px">${verdict}</p><dl class="zone-stats">${same}${skipped}
-    <dt>Record</dt><dd>${esc(archive.note)}</dd></dl><p class="chart-note">${esc(tr.method)} Crop changes between seasons affect this; compare same-crop seasons.</p>`;
+  $('trend-info').innerHTML = `<p style="margin:0 0 10px">${verdict}</p><dl class="zone-stats">${skipped}
+    <dt>Record</dt><dd>${esc(archive.note)}</dd></dl><p class="chart-note">${esc(tr.method)}</p>`;
+}
+
+
+const WX_LABEL = { dry_spell: ['longest dry spell', ' d'], low_rain: ['lowest rain', ' mm'], wet: ['highest rain', ' mm'],
+  heat: ['most hot days', ''], cool: ['coolest (GDD5)', ''], late_frost: ['latest spring frost', ''],
+  dry_soil: ['driest root zone', ''], wet_soil: ['wettest root zone', ''] };
+const CHECK_STATUS = { lower: 'Clearly lower', normal: 'Within normal', no_value: 'Not judged: cloud gap', crop_unclear: 'Not judged: crop unclear',
+  too_few_same_crop: 'Not judged: too few same-crop seasons' };
+
+function renderSeasonCheck(sc) {
+  if (!sc) { $('season-check').innerHTML = ''; return; }
+  const wx = (r) => r.weather == null ? '<span class="muted">no weather yet</span>' : (r.weather_through ? `<span class="muted">season so far, to ${esc(r.weather_through)}:</span> ` : '') + (r.weather.length
+    ? r.weather.map((w) => `${WX_LABEL[w.code][0]} (${w.rank === 1 ? '1st' : '2nd'} of ${w.of}${w.code === 'late_frost' ? '' : `: ${w.value}${WX_LABEL[w.code][1]}, median ${w.normal}${WX_LABEL[w.code][1]}`})`).join('<br>')
+    : '<span class="muted">nothing unusual</span>');
+  const n = (v) => (v == null ? '—' : v.toFixed(3));
+  const verdict = sc.flagged.length ? `<b>${sc.flagged.join(', ')}</b> ${sc.flagged.length > 1 ? 'were' : 'was'} clearly less green than the field's other seasons with the same likely crop.`
+    : sc.judged ? `No season was clearly less green than the field's other seasons with the same likely crop (${sc.judged} judged).`
+    : 'Too few comparable seasons to judge yet.';
+  $('season-check').innerHTML = `<p style="margin:0 0 10px">${verdict}</p>
+    <div class="data-table-wrap" style="max-height:none"><table><thead><tr><th>Season</th><th>Likely crop</th><th class="num">Season EVI</th><th class="num">Same-crop median</th>
+    <th class="num">Difference</th><th>Reading</th><th>Weather that stood out (NASA POWER)</th></tr></thead><tbody>
+    ${sc.seasons.map((r) => `<tr${r.status === 'lower' ? ' class="row-flag"' : ''}><td><b>${esc(r.label)}</b></td><td>${esc((r.crop || '—').replace('_', ' '))}</td>
+      <td class="num">${n(r.evi_mean)}</td><td class="num">${n(r.reference)}${r.n_same_crop ? ` <span class="muted">(${r.n_same_crop})</span>` : ''}</td>
+      <td class="num">${r.diff_pct == null ? '—' : `${r.diff_pct > 0 ? '+' : ''}${r.diff_pct}%`}</td><td>${CHECK_STATUS[r.status]}</td><td>${wx(r)}</td></tr>`).join('')}
+    </tbody></table></div>
+    <p class="chart-note">${esc(sc.method)}</p>`;
 }
 
 const ZONE_COLOUR = { weaker: '#c8801f', average: '#6b7684', stronger: '#2fa477' };
@@ -387,13 +418,14 @@ async function renderSatellite(f, d) {
         <th class="num">Peak NDVI</th><th class="num">Mean NDVI</th><th class="num">Season EVI</th><th class="num">Peak NDMI</th><th class="num">Rain (frost-free)</th><th class="num">ET₀</th><th class="num">Longest dry spell</th><th class="num">Heat days</th></tr></thead><tbody>
         ${veg.seasons.map((s) => { const w = wx[s.label]; return `<tr><td><b>${esc(s.label)}</b></td><td title="${esc(s.crop_hint?.evidence ?? '')}">${esc(HINT_LABEL[s.crop_hint?.type] ?? '—')}</td><td class="num">${s.images}</td><td class="num">${s.clear_images}</td>
           <td>${s.greenup_date ? fmtDay(s.greenup_date) : s.greenup_cloud_gap ? '<span class="muted">cloud gap</span>' : '—'}</td><td>${s.peak_date ? fmtDay(s.peak_date) : '—'}</td>
-          <td class="num">${n(s.peak_ndvi)}</td><td class="num">${n(s.mean_ndvi)}</td><td class="num" title="${s.season_evi_mean == null && s.core_gap_days ? `skipped: ${s.core_gap_days}-day cloud gap` : ''}">${s.season_evi_mean == null ? (s.core_gap_days > 40 ? '<span class="muted">gap</span>' : '—') : n(s.season_evi_mean)}</td><td class="num">${n(s.peak_ndmi)}</td>
+          <td class="num">${n(s.peak_ndvi)}</td><td class="num">${n(s.mean_ndvi)}</td><td class="num" title="${s.season_evi_mean == null && s.core_gap_days ? `skipped: ${s.core_gap_days}-day cloud gap` : ''}">${s.season_evi_mean == null ? (s.core_gap_days > s.max_gap_days ? '<span class="muted">gap</span>' : '—') : n(s.season_evi_mean)}</td><td class="num">${n(s.peak_ndmi)}</td>
           <td class="num">${w ? w.season_rain_mm + ' mm' : '—'}</td><td class="num">${w ? w.season_et0_mm + ' mm' : '—'}</td><td class="num">${w ? w.longest_dry_spell + ' d' : '—'}</td><td class="num">${w ? w.heat_days : '—'}</td></tr>`; }).join('')}
       </tbody></table></div>
       <div class="zones-block"><div class="chart-title"><h3>Productivity zones (multi-season EVI)</h3></div>
         <div class="zones-grid"><div id="zones-map" class="zones-map"></div><div id="zones-info"><div class="mission-status busy"><span class="scanner"></span><span>Computing zones from every 30 m pixel…</span></div></div></div></div>
       <div class="zones-block"><div class="chart-title"><h3>Productivity trend (season-long EVI, ${veg.trend.seasons.length ? `${veg.trend.seasons[0].season}–${veg.trend.seasons[veg.trend.seasons.length - 1].season}` : '—'})</h3></div>
         <div class="zones-grid"><div class="chart-box"><canvas id="c-trend" aria-label="Season-long EVI by season with trend line"></canvas></div><div id="trend-info"></div></div></div>
+      <div class="zones-block"><div class="chart-title"><h3>Season check: weak seasons and their weather</h3></div><div id="season-check"></div></div>
       <p class="chart-note">Crop-type hints are rule-based on the curve shape (hover a hint for its evidence): ${esc(veg.method.crop_hint)}</p>
       <p class="chart-note">Weather columns come from NASA POWER for the same season (frost-free window); “—” where the season is not complete in the weather record.</p>
       <details><summary class="label" style="cursor:pointer">All ${veg.observations.length} image readings</summary><div class="data-table-wrap"><table><thead><tr><th>Date</th><th>Sensor</th><th class="num">Field clear</th><th class="num">Tile cloud</th><th class="num">NDVI</th><th class="num">NDMI</th></tr></thead><tbody>
@@ -408,6 +440,7 @@ async function renderSatellite(f, d) {
       panel.querySelectorAll('.mini-switch button').forEach((x) => x.setAttribute('aria-pressed', x === b)); drawKey(b.dataset.g);
     };
     renderTrend(veg.trend, veg.archive);
+    renderSeasonCheck(veg.season_check);
   } catch (e) {
     if (state.vegFor === key) panel.innerHTML = `<div class="mission-status error">Satellite record unavailable: ${esc(e.message)}</div>`;
   }

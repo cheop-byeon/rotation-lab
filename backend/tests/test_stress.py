@@ -1,0 +1,104 @@
+from app.stress import season_check, weather_standouts
+
+
+def veg(label, crop, evi):
+    return {"season": int(label), "label": label, "crop_hint": {"type": crop}, "season_evi_mean": evi}
+
+
+def wx(label, dry=10, rain=300, heat=0, gdd=1200, frost="2020-05-10", soil=0.6):
+    y = int(label)
+    return {"season": y, "label": label, "longest_dry_spell": dry, "season_rain_mm": rain, "heat_days": heat,
+            "gdd5": gdd, "last_spring_frost": frost.replace("2020", label), "mean_root_wetness": soil}
+
+
+WEATHER = [wx(str(y)) for y in range(2016, 2026)]
+
+
+def test_weak_season_flagged_against_same_crop_only():
+    seasons = [veg("2020", "spring_crop", 0.33), veg("2021", "spring_crop", 0.34), veg("2022", "spring_crop", 0.27),
+               veg("2023", "grass", 0.45), veg("2024", "spring_crop", 0.33)]
+    out = season_check(seasons, WEATHER)
+    rows = {r["label"]: r for r in out["seasons"]}
+    assert out["flagged"] == ["2022"]
+    assert rows["2022"]["status"] == "lower" and rows["2022"]["diff_pct"] < -10
+    # a greener grass year is not compared with cereals
+    assert rows["2023"]["status"] == "too_few_same_crop"
+
+
+def test_unjudgeable_seasons_say_why():
+    seasons = [veg("2020", "unclear", 0.3), {**veg("2021", "spring_crop", None)}, veg("2022", "spring_crop", 0.3)]
+    rows = {r["label"]: r["status"] for r in season_check(seasons, WEATHER)["seasons"]}
+    assert rows == {"2020": "crop_unclear", "2021": "no_value", "2022": "too_few_same_crop"}
+
+
+def test_weather_standout_needs_extreme_rank_and_real_difference():
+    pool = [wx(str(y), dry=10 + (y % 3)) for y in range(2016, 2026)]
+    target = wx("2022", dry=25)
+    pool = [p for p in pool if p["label"] != "2022"] + [target]
+    codes = {w["code"] for w in weather_standouts(target, pool)}
+    assert "dry_spell" in codes
+    # longest dry spell, but only one day above normal: not called unusual
+    mild = wx("2022", dry=13)
+    pool2 = [p for p in pool if p["label"] != "2022"] + [mild]
+    assert "dry_spell" not in {w["code"] for w in weather_standouts(mild, pool2)}
+
+
+def test_no_weather_still_compares_greenness():
+    seasons = [veg(str(y), "grass", 0.4) for y in range(2020, 2024)]
+    out = season_check(seasons, None)
+    assert out["judged"] == 4 and all(r["weather"] is None for r in out["seasons"])
+
+
+# ---- fixes found in the drought-field test
+from datetime import date, timedelta  # noqa: E402
+
+from app import hls  # noqa: E402
+
+
+def _season(season, crop, evi):
+    return {"season": season, "season_evi_mean": evi, "crop_hint": {"type": crop}}
+
+
+def test_trend_gives_no_overall_direction_when_crops_change():
+    # a perennial ley followed by cereals is "less green" without the field getting worse
+    seasons = [_season(2020, "grass", 0.55), _season(2021, "grass", 0.50), _season(2022, "grass", 0.48),
+               _season(2023, "winter_crop", 0.32), _season(2024, "winter_crop", 0.30), _season(2025, "winter_crop", 0.29)]
+    tr = hls.productivity_trend(seasons)
+    assert tr["status"] == "mixed_crops" and tr["direction"] is None
+    assert "same_crop" not in tr  # no crop has 4 seasons
+
+
+def test_trend_reports_same_crop_seasons_when_crops_change():
+    seasons = [_season(2020 + i, "spring_crop", 0.40 - 0.02 * i) for i in range(5)] + [_season(2025, "late_crop", 0.45)]
+    tr = hls.productivity_trend(seasons)
+    assert tr["status"] == "mixed_crops"
+    assert tr["same_crop"]["crop"] == "spring_crop" and tr["same_crop"]["n"] == 5 and tr["same_crop"]["direction"] == "falling"
+
+
+def test_single_crop_trend_still_has_a_direction():
+    tr = hls.productivity_trend([_season(2020 + i, "grass", 0.50 + 0.02 * i) for i in range(6)])
+    assert tr["status"] == "ok" and tr["direction"] == "rising" and len(tr["fit"]) == 2
+
+
+def test_winter_crop_window_ends_before_stubble():
+    a, b, _, _ = hls.season_window(2023, 46.6, "winter_crop")
+    assert (a, b) == (date(2023, 4, 1), date(2023, 7, 15))
+    # stubble after harvest must not change a winter crop's value
+    obs = [{"date": (date(2023, 4, 1) + timedelta(7 * k)).isoformat(), "evi": 0.6} for k in range(16)]
+    stubble = [{"date": (date(2023, 7, 20) + timedelta(7 * k)).isoformat(), "evi": 0.1} for k in range(10)]
+    assert hls.season_evi_mean(obs + stubble, 2023, 46.6, "winter_crop") == 0.6
+    # southern hemisphere: shifted six months, with valid month ends
+    a, b, _, _ = hls.season_window(2023, -34.0, None)
+    assert (a, b) == (date(2022, 10, 1), date(2023, 4, 30))
+
+
+def test_current_season_weather_only_after_growing_months():
+    from app import agro
+
+    class FakeClimate:
+        north, lat = True, 46.6
+        def __init__(self, last): self.last = last
+        def season_of(self, d): return d.year
+    assert agro.growing_months_over(FakeClimate(date(2026, 11, 13)))
+    assert not agro.growing_months_over(FakeClimate(date(2026, 8, 1)))
+    assert not agro.growing_months_over(type("T", (FakeClimate,), {"lat": 10.0})(date(2026, 12, 1)))

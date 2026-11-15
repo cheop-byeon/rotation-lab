@@ -168,11 +168,20 @@ export function renderVegCharts(veg, greenness = 'ndvi') {
 }
 
 export function renderTrendChart(trend) {
-  const c = C(), pts = trend.seasons;
-  const sets = [{ label: 'Season-long EVI', data: pts.map((s) => ({ x: s.season, y: s.evi_mean })), borderColor: c.soil, backgroundColor: c.soil,
-    pointRadius: 5, pointHoverRadius: 7, borderWidth: 0, showLine: false }];
-  if (trend.status === 'ok') {
-    sets.push({ label: 'Theil–Sen trend', data: trend.fit.map(([x, y]) => ({ x, y })),
+  const c = C(), pts = trend.seasons.map((s) => ({ x: s.season, y: s.evi_mean, crop: s.crop }));
+  const key = trend.status === 'mixed_crops' ? trend.same_crop?.crop : null;
+  const crop = (v) => (v || 'unclear').replace('_', ' ');
+  // With mixed crops, each likely crop gets its own colour (fixed per crop, from the validated season palette).
+  const CROP_COLOUR = { grass: '#2fa477', winter_crop: '#2e98c4', spring_crop: '#c8801f', late_crop: '#9d5bdb' };
+  const groups = trend.status === 'mixed_crops'
+    ? [...new Set(pts.map((p) => (p.crop in CROP_COLOUR ? p.crop : 'other')))].map((k) => [k, pts.filter((p) => (p.crop in CROP_COLOUR ? p.crop : 'other') === k)])
+    : [[null, pts]];
+  const sets = groups.map(([k, data]) => ({ label: k ? (k === 'other' ? 'unclear' : crop(k)) : 'Season-long EVI', data,
+    borderColor: k ? (CROP_COLOUR[k] || c.muted) : c.soil, backgroundColor: k ? (CROP_COLOUR[k] || c.muted) : c.soil,
+    pointRadius: 5, pointHoverRadius: 7, borderWidth: 0, showLine: false }));
+  const fit = trend.status === 'ok' ? trend.fit : trend.same_crop?.fit;
+  if (fit) {
+    sets.push({ label: key ? `Theil–Sen (${crop(key)} only)` : 'Theil–Sen trend', data: fit.map(([x, y]) => ({ x, y })),
       borderColor: c.ink2, borderDash: [6, 5], borderWidth: 2, pointRadius: 0, showLine: true });
   }
   const o = base(c, { yTitle: 'mean EVI' });
@@ -181,7 +190,10 @@ export function renderTrendChart(trend) {
   o.scales.x = { ...o.scales.x, type: 'linear', min: Math.min(...years) - 0.5, max: Math.max(...years) + 0.5,
     ticks: { ...(o.scales.x?.ticks || {}), callback: (v) => String(v) },
     afterBuildTicks: (ax) => { ax.ticks = Array.from({ length: Math.max(...years) - Math.min(...years) + 1 }, (_, i) => ({ value: Math.min(...years) + i })); } };
+  o.plugins.legend = { display: trend.status === 'mixed_crops', position: 'top', align: 'end',
+    labels: { color: c.ink2, usePointStyle: true, boxWidth: 8, font: { family: 'JetBrains Mono', size: 10 } } };
   o.plugins.tooltip.callbacks = { title: (items) => String(items[0].raw.x),
-    afterLabel: (ctx) => ctx.datasetIndex === 0 ? ` likely crop: ${pts[ctx.dataIndex].crop ?? '—'}` : '' };
+    afterLabel: (ctx) => ctx.raw.crop !== undefined ? ` likely crop: ${crop(ctx.raw.crop)}` : '' };
   draw('c-trend', { type: 'scatter', data: { datasets: sets }, options: o });
 }
+

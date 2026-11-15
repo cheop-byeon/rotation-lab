@@ -153,33 +153,47 @@ def longest_run(flags: list[bool]) -> int:
     return best
 
 
-def season_summaries(c: Climate) -> list[dict]:
-    out = []
-    for y in c.complete_seasons():
-        fd = frost_dates(c, y)
-        window = [fd["start"] + timedelta(n) for n in range(fd["frost_free_days"])]
-        gdd = sum(max(0.0, (c.val(c.tmean, d) or 0) - GDD_BASE) for d in c.season_days(y))
-        rain = sum(c.val(c.prec, d) or 0 for d in window)
-        et0 = sum(c.val(c.et0, d) or 0 for d in window)
-        heat = sum(1 for d in window if (t := c.val(c.tmax, d)) is not None and t >= HEAT_DAY_C)
-        dry = longest_run([(c.val(c.prec, d) or 0) < DRY_DAY_MM for d in window])
-        soil = [v for d in window if (v := c.val(c.gwr, d)) is not None]
-        out.append({
-            "season": y,
-            "label": str(y) if c.north else f"{y - 1}/{str(y)[2:]}",
-            "gdd5": round(gdd),
-            "last_spring_frost": fd["last_spring"].isoformat() if fd["last_spring"] else None,
-            "first_fall_frost": fd["first_fall"].isoformat() if fd["first_fall"] else None,
-            "frost_free_days": fd["frost_free_days"],
-            "season_rain_mm": round(rain),
-            "season_et0_mm": round(et0),
-            "water_balance_mm": round(rain - et0),
-            "heat_days": heat,
-            "longest_dry_spell": dry,
-            "mean_root_wetness": r1(mean(soil), 2) if soil else None,
-        })
-    return out
+def _season_summary(c: Climate, y: int) -> dict:
+    fd = frost_dates(c, y)
+    window = [fd["start"] + timedelta(n) for n in range(fd["frost_free_days"])]
+    gdd = sum(max(0.0, (c.val(c.tmean, d) or 0) - GDD_BASE) for d in c.season_days(y))
+    rain = sum(c.val(c.prec, d) or 0 for d in window)
+    et0 = sum(c.val(c.et0, d) or 0 for d in window)
+    heat = sum(1 for d in window if (t := c.val(c.tmax, d)) is not None and t >= HEAT_DAY_C)
+    dry = longest_run([(c.val(c.prec, d) or 0) < DRY_DAY_MM for d in window if d <= c.last])
+    soil = [v for d in window if (v := c.val(c.gwr, d)) is not None]
+    return {
+        "season": y,
+        "label": str(y) if c.north else f"{y - 1}/{str(y)[2:]}",
+        "gdd5": round(gdd),
+        "last_spring_frost": fd["last_spring"].isoformat() if fd["last_spring"] else None,
+        "first_fall_frost": fd["first_fall"].isoformat() if fd["first_fall"] else None,
+        "frost_free_days": fd["frost_free_days"],
+        "season_rain_mm": round(rain),
+        "season_et0_mm": round(et0),
+        "water_balance_mm": round(rain - et0),
+        "heat_days": heat,
+        "longest_dry_spell": dry,
+        "mean_root_wetness": r1(mean(soil), 2) if soil else None,
+    }
 
+
+def growing_months_over(c: Climate) -> bool:
+    """True once the current season's growing months (Apr–Oct north, Oct–Apr south) have passed."""
+    if abs(c.lat) < 23.5:
+        return False
+    y = c.season_of(c.last)
+    return c.last >= (date(y, 11, 1) if c.north else date(y, 5, 1))
+
+
+def season_summaries(c: Climate, include_current: bool = False) -> list[dict]:
+    """Per-season weather. With include_current, the current season is added (marked partial) once its
+    growing months are over, so this year's crop can be checked against this year's weather."""
+    out = [_season_summary(c, y) for y in c.complete_seasons()]
+    y = c.season_of(c.last)
+    if include_current and growing_months_over(c) and y not in c.complete_seasons():
+        out.append({**_season_summary(c, y), "partial": True, "through": c.last.isoformat()})
+    return out
 
 def _offset_to_date(c: Climate, offsets: list[int], q: float) -> date | None:
     v = quantile(offsets, q)

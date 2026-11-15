@@ -71,6 +71,19 @@ export default {
     tooSmall: 'The field is too small to show stronger and weaker parts: satellite pixels are 30 m.',
     download: 'Download zone map (for farm machinery)',
   },
+  usual: {
+    legend: 'Usual range for {crop} here',
+    legendAll: 'Usual range here (all earlier years)',
+    within: '{y}: within the usual range for {crop} on this field ({seasons}).',
+    below: '{y}: mostly below the usual range for {crop} on this field ({seasons}).',
+    above: '{y}: mostly above the usual range for {crop} on this field ({seasons}).',
+    withinAll: '{y} so far: within the usual range of earlier years on this field; this year’s crop is not clear yet.',
+    belowAll: '{y} so far: mostly below the usual range of earlier years on this field; this year’s crop is not clear yet.',
+    aboveAll: '{y} so far: mostly above the usual range of earlier years on this field; this year’s crop is not clear yet.',
+    tooFew: 'Not enough earlier seasons of {crop} on this field to show its usual range yet.',
+    thisCrop: 'this crop',
+    noImages: 'No clear images of {y} inside the usual range yet.',
+  },
   around: {
     title: 'What’s grown around you',
     noOutline: 'Outline your field to see what is grown on the farmland around it.',
@@ -85,7 +98,7 @@ export default {
     failed: 'Could not read the area around your field: {error}',
   },
   cc: {
-    title: 'Is it still a good choice here?',
+    title: 'Crops then and now',
     crop: 'Crop',
     ripened: 'Ripened in time in {now} of the last {nowOf} seasons, against {then} of {thenOf} in {range}.',
     m: {

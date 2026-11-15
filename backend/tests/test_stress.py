@@ -166,3 +166,26 @@ def test_neighbourhood_shift_needs_a_consistent_trend():
     steady = [(2020 + i, np.where(np.arange(16).reshape(4, 4) < 2 * i + 2, 2, 4).astype(np.int8)) for i in range(6)]
     _, change = nb._summarise(steady, farm, {y: str(y) for y in range(2020, 2026)})
     assert "grass" in change["notable"] and change["classes"]["grass"]["pp_per_year"] > 0
+
+
+# ---- this season against the field's usual range
+def test_usual_range_compares_with_same_crop_seasons_inside_the_crop_window():
+    from datetime import date, timedelta
+    from app import hls
+
+    def season(y, peak, crop="winter_crop", harvest_ndvi=0.25):
+        obs = []
+        for k in range(0, 210, 6):  # Apr–Oct, a clear image every 6 days
+            d = date(y, 4, 1) + timedelta(k)
+            v = peak if d <= date(y, 7, 10) else harvest_ndvi  # green until harvest, then stubble
+            obs.append({"date": d.isoformat(), "ndvi": v})
+        return obs
+    by = {2023: season(2023, 0.85), 2024: season(2024, 0.80), 2025: season(2025, 0.55)}
+    sl = [{"season": y, "label": str(y), "crop_hint": {"type": "winter_crop"}} for y in by]
+    u = hls.usual_range(by, sl, 46.6)
+    assert u["seasons"] == ["2023", "2024"] and u["status"] == "below"           # weak only before harvest
+    assert u["judged_window"] == ["2025-04-01", "2025-07-15"]                     # stubble weeks not counted
+    by[2025] = season(2025, 0.82)
+    assert hls.usual_range(by, sl, 46.6)["status"] == "within"
+    sl[0]["crop_hint"]["type"] = "grass"                                          # only one earlier winter crop left
+    assert hls.usual_range(by, sl, 46.6)["status"] == "too_few"

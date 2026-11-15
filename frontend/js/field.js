@@ -494,6 +494,14 @@ function greennessChart(veg) {
       (now ? pts.map((p) => `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="3.5" fill="#2E7D32"/>`).join('') : '');
   });
   const [a, b] = growWindow(latest, lat);
+  // The field's usual range for this crop (earlier same-crop seasons), drawn behind the lines.
+  const u = veg.usual_range, span = (b - a) / 864e5;
+  const bandPath = u?.band?.length ? (() => {
+    const X = (d) => (L0 + PW * d / span).toFixed(1);
+    const top = u.band.map(([d, , hi], i) => `${i ? 'L' : 'M'}${X(d)},${y(hi).toFixed(1)}`).join('');
+    const bot = [...u.band].reverse().map(([d, lo]) => `L${X(d)},${y(lo).toFixed(1)}`).join('');
+    return `<path d="${top}${bot}Z" fill="#CFE6CF" stroke="none"/>`;
+  })() : '';
   const months = [];
   for (let m = new Date(a); m.getTime() <= b; m.setUTCMonth(m.getUTCMonth() + 1)) {
     const x = L0 + PW * (m.getTime() - a) / (b - a);
@@ -502,8 +510,20 @@ function greennessChart(veg) {
   const grid = [0, 0.5, 1].map((v) => `<line x1="${L0}" x2="${L0 + PW}" y1="${y(v)}" y2="${y(v)}" stroke="#E2DED2"/><text x="${L0 - 6}" y="${y(v) + 4}" text-anchor="end" font-size="12" fill="#4A5A4C">${v}</text>`).join('');
   return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(t('space.chartLabel'))}">${grid}${months.join('')}
     <text x="${L0 + 6}" y="${y(1) + 14}" font-size="12" fill="#4A5A4C">${esc(t('space.axisHigh'))}</text>
-    <text x="${L0 + 6}" y="${y(0) - 6}" font-size="12" fill="#4A5A4C">${esc(t('space.axisLow'))}</text>${lines.join('')}</svg>
-    <div class="cal-legend"><span><i style="background:#2E7D32"></i>${esc(t('space.thisYear', { y: seasons[seasons.length - 1]?.label ?? '' }))}</span><span><i style="background:#B7BFB2"></i>${esc(t('space.earlier'))}</span></div>`;
+    <text x="${L0 + 6}" y="${y(0) - 6}" font-size="12" fill="#4A5A4C">${esc(t('space.axisLow'))}</text>${bandPath}${lines.join('')}</svg>
+    <div class="cal-legend"><span><i style="background:#2E7D32"></i>${esc(t('space.thisYear', { y: seasons[seasons.length - 1]?.label ?? '' }))}</span><span><i style="background:#B7BFB2"></i>${esc(t('space.earlier'))}</span>${bandPath
+      ? `<span><i style="background:#CFE6CF"></i>${esc(t(u.basis === 'all' ? 'usual.legendAll' : 'usual.legend', { crop: u.crop ? t(`space.hint.${u.crop}`).toLowerCase() : '' }))}</span>` : ''}</div>
+    ${usualLine(u)}`;
+}
+
+function usualLine(u) {
+  if (!u) return '';
+  const crop = u.crop ? t(`space.hint.${u.crop}`).toLowerCase() : '';
+  const n = u.seasons.length;
+  const text = u.status === 'too_few' ? t('usual.tooFew', { crop: crop || t('usual.thisCrop') })
+    : u.status === 'no_images' ? t('usual.noImages', { y: u.season })
+    : t(`usual.${u.status}${u.basis === 'all' ? 'All' : ''}`, { y: u.season, crop, n, seasons: u.seasons.join(', ') });
+  return `<p class="usual-line ${esc(u.status)}">${esc(text)}</p>`;
 }
 
 // Season check: a season clearly less green than the field's other seasons with the same likely crop, and its weather.

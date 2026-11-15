@@ -603,6 +603,79 @@ def _fit(x: list[int], y: list[float]) -> dict:
             "fit": [[a, round(b0 + slope * a, 4)] for a in (x[0], x[-1])]}  # endpoints: rounding the slope would shift the line
 
 
+# ---------------------------------------------------------------- this season against the field's usual range
+BAND_TOL = 0.05        # NDVI tolerance around the range (sensor and mixed-pixel noise)
+BAND_MAX_GAP = 30      # days: no range is drawn across longer cloud gaps
+
+
+def _growing_window(season: int, lat: float) -> tuple[date, date]:
+    return (date(season, 4, 1), date(season, 10, 31)) if lat >= 0 else (date(season - 1, 10, 1), date(season, 4, 30))
+
+
+def _daily_curve(obs: list[dict], season: int, lat: float) -> np.ndarray | None:
+    """NDVI per day of the growing window, interpolated between clear images; NaN outside them or across long gaps."""
+    a, b = _growing_window(season, lat)
+    pts = sorted(((date.fromisoformat(o["date"]) - a).days, o["ndvi"]) for o in obs
+                 if o["ndvi"] is not None and a <= date.fromisoformat(o["date"]) <= b)
+    if len(pts) < 8:
+        return None
+    t = np.array([p[0] for p in pts], float)
+    v = np.array([p[1] for p in pts], float)
+    grid = np.arange((b - a).days + 1, dtype=float)
+    out = np.interp(grid, t, v)
+    out[(grid < t[0]) | (grid > t[-1])] = np.nan
+    gaps = np.diff(t)
+    for i in np.where(gaps > BAND_MAX_GAP)[0]:
+        out[(grid > t[i]) & (grid < t[i + 1])] = np.nan
+    return out
+
+
+def usual_range(by_season: dict[int, list[dict]], season_list: list[dict], lat: float) -> dict | None:
+    """The field's usual greenness for this season's likely crop (min–max of earlier same-crop seasons, day by day),
+    and where this season's clear images fall against it."""
+    if abs(lat) < 23.5 or len(season_list) < 2:
+        return None
+    cur = season_list[-1]
+    crop = (cur.get("crop_hint") or {}).get("type")
+    known = crop in ("grass", "spring_crop", "winter_crop", "late_crop")
+    pool = [s for s in season_list[:-1] if known and (s.get("crop_hint") or {}).get("type") == crop]
+    basis = "same_crop"
+    if not known:  # crop not clear yet (early in the season): compare with every earlier season
+        pool, basis = season_list[:-1], "all"
+    curves = [(s["label"], c) for s in pool if (c := _daily_curve(by_season[s["season"]], s["season"], lat)) is not None]
+    out = {"season": cur["label"], "crop": crop if known else None, "basis": basis, "seasons": [l for l, _ in curves]}
+    if len(curves) < 2:
+        return {**out, "status": "too_few"}
+    stack = np.vstack([c for _, c in curves])
+    n_ok = (~np.isnan(stack)).sum(0)
+    lo = np.where(n_ok >= 2, np.nanmin(stack, 0), np.nan)
+    hi = np.where(n_ok >= 2, np.nanmax(stack, 0), np.nan)
+    a, _ = _growing_window(cur["season"], lat)
+    # Judge only inside the crop's own window (as the season check does): after a July harvest every winter-crop year
+    # looks alike, and those weeks would dilute a weak season.
+    wa, wb = season_window(cur["season"], lat, crop if known else None)[:2]
+    counts = {"below": 0, "within": 0, "above": 0}
+    last = None
+    for o in sorted(by_season[cur["season"]], key=lambda o: o["date"]):
+        d = (date.fromisoformat(o["date"]) - a).days
+        if o["ndvi"] is None or not 0 <= d < len(lo) or np.isnan(lo[d]) or not wa <= date.fromisoformat(o["date"]) <= wb:
+            continue
+        state = "below" if o["ndvi"] < lo[d] - BAND_TOL else "above" if o["ndvi"] > hi[d] + BAND_TOL else "within"
+        counts[state] += 1
+        last = {"date": o["date"], "ndvi": o["ndvi"], "state": state}
+    n = sum(counts.values())
+    if not n:
+        return {**out, "status": "no_images"}
+    status = "within" if counts["within"] >= 0.6 * n else ("below" if counts["below"] > counts["above"] else "above")
+    band = [[d, round(float(lo[d]), 3), round(float(hi[d]), 3)] for d in range(0, len(lo), 3) if not np.isnan(lo[d])]
+    return {**out, "status": status, "counts": counts, "last": last, "band": band, "tolerance": BAND_TOL,
+            "judged_window": [wa.isoformat(), wb.isoformat()],
+            "method": ("Usual range = lowest to highest NDVI, day by day, of the field's earlier seasons with the same likely crop "
+                       f"(curves interpolated between clear images; no range across cloud gaps over {BAND_MAX_GAP} days). This "
+                       f"season's clear images inside the crop's growing window are compared with it, allowing ±{BAND_TOL} for sensor "
+                       "noise; 'within' when at least 60% of them fall inside.")}
+
+
 # ---------------------------------------------------------------- summary
 def summarise_season(obs: list[dict]) -> dict:
     good = sorted((o for o in obs if o["ndvi"] is not None), key=lambda o: o["date"])
@@ -697,6 +770,7 @@ def _assemble(geom, bkey, lat, lon, start, end, all_obs, delivery, counts, t0) -
         "period": {"start": start, "end": end}, "seasons": season_list,
         "observations": [{**{k: o[k] for k in ("date", "sensor", "ndvi", "ndmi", "clear_pct", "scene_cloud")}, "evi": o.get("evi")} for o in obs],
         "trend": productivity_trend(season_list),
+        "usual_range": usual_range({s["season"]: s["obs"] for s in by_season.values()}, season_list, lat),
         "archive": {"start": ARCHIVE_START.isoformat(), "note": "Openly hosted HLS v2.0 starts in 2020; NASA LP DAAC (Earthdata login) goes back to 2013."},
         "delivery": delivery,
         "stats": {**counts, "clear_images": sum(1 for o in obs if o["ndvi"] is not None), "seconds": round(time.time() - t0, 1)},

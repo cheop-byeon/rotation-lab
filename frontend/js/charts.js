@@ -160,11 +160,21 @@ export function renderVegCharts(veg, greenness = 'ndvi') {
     o.plugins.tooltip.callbacks = { title: (items) => items[0].raw.date, label: (ctx) => ` ${ctx.dataset.label} · ${ctx.parsed.y.toFixed(3)} · ${ctx.raw.sensor} · ${Math.round(ctx.raw.clear * 100)}% clear` };
     return o;
   };
-  draw('c-ndvi', { type: 'line', data: { datasets: sets(greenness) }, options: opts(greenness.toUpperCase(), -0.1, 1) });
+  // The field's usual range for this season's likely crop (NDVI only), as a shaded band behind the season lines.
+  const u = veg.usual_range, band = greenness === 'ndvi' && u?.band?.length;
+  const bandSets = band ? [
+    { label: 'Usual range', data: u.band.map(([d, , hi]) => ({ x: d, y: hi })), borderColor: 'transparent', backgroundColor: alpha(c.soil, 0.32),
+      fill: '+1', pointRadius: 0, pointHoverRadius: 0, order: 3, _band: true },
+    { label: 'Usual range (low)', data: u.band.map(([d, lo]) => ({ x: d, y: lo })), borderColor: 'transparent', pointRadius: 0, pointHoverRadius: 0, order: 3, _band: true },
+  ] : [];
+  const vo = opts(greenness.toUpperCase(), -0.1, 1);
+  vo.plugins.tooltip.filter = (item) => !item.dataset._band;
+  draw('c-ndvi', { type: 'line', data: { datasets: [...sets(greenness), ...bandSets] }, options: vo });
   draw('c-ndmi', { type: 'line', data: { datasets: sets('ndmi') }, options: opts('NDMI', -0.4, 0.8) });
   const older = seasons.filter((s) => !recent.includes(s));
   return [...(older.length ? [{ label: `${older[0].label}–${older[older.length - 1].label}`, colour: '#4B5563' }] : []),
-    ...recent.map((s) => ({ label: s.label, colour: colour[s.season] }))];
+    ...recent.map((s) => ({ label: s.label, colour: colour[s.season] })),
+    ...(band ? [{ label: `usual range${u.crop ? ` (${u.crop.replace('_', ' ')}: ${u.seasons.join(', ')})` : ''}`, colour: alpha(c.soil, 0.55) }] : [])];
 }
 
 export function renderTrendChart(trend) {

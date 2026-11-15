@@ -166,7 +166,7 @@ async function analyze(f) {
     $('loading').textContent = '';
     $('results').hidden = false;
     renderNow(d); renderTodo(d); renderSeason(d); renderCrops(d); renderPrioChips(); await renderPlan(); renderSource(d);
-    renderSpace(f); renderChanged(f);
+    renderSpace(f); renderChanged(f); renderCropCheck(f);
   } catch (e) {
     $('loading').className = 'loading error';
     $('loading').textContent = t('app.failed', { error: e.message });
@@ -315,6 +315,40 @@ async function renderChanged(f) {
       <p class="muted small">${esc(t('changed.note', { record: d.record }))}</p>`;
   } catch (e) {
     if (state.changeFor === key) box.innerHTML = `<p class="loading error">${esc(t('changed.failed', { error: e.message }))}</p>`;
+  }
+}
+
+// ------------------------------------------------------------------ is this crop still a good choice here?
+function renderCropCheck(f) {
+  const sel = $('cc-crop');
+  if (!sel.options.length) {
+    sel.innerHTML = state.catalog.map((c) => `<option value="${esc(c.name)}">${esc(cropName(c.name))}</option>`).join('');
+    sel.value = state.catalog.some((c) => c.name === 'Potato') ? 'Potato' : state.catalog[0]?.name;
+  }
+  sel.onchange = () => showCropCheck(f, sel.value);
+  showCropCheck(f, sel.value);
+}
+
+async function showCropCheck(f, crop) {
+  const box = $('cc-out'), key = `${f.lat},${f.lon},${crop}`;
+  state.ccFor = key;
+  box.innerHTML = `<p class="loading">${esc(t('changed.loading'))}</p>`;
+  try {
+    const d = await api.cropCheck(f.lat, f.lon, crop);
+    if (state.ccFor !== key) return;
+    const r = d.ripened;
+    const whole = (m, v) => (m.unit === 'days' ? Math.round(v) : v);
+    const clear = d.measures.filter((m) => m.consistent);
+    const rest = d.measures.filter((m) => !m.consistent);
+    const lines = [t('cc.ripened', { now: r.now, nowOf: r.now_of, then: r.then, thenOf: r.then_of, range: d.then }),
+      ...clear.map((m) => t(`cc.m.${m.code}.${m.change > 0 ? 'up' : 'down'}`, { now: whole(m, m.now), was: whole(m, m.then), d: whole(m, Math.abs(m.change)), then: d.then }))];
+    const water = d.measures.find((m) => m.code === 'water_pct');
+    if (water && water.now < 70) lines.push(t('cc.thirsty', { now: water.now }));
+    box.innerHTML = `<ul class="changes">${lines.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>
+      ${rest.length ? `<p>${esc(t('cc.noClear', { list: rest.map((m) => t(`cc.name.${m.code}`)).join(', ') }))}</p>` : ''}
+      <p class="muted small">${esc(t('cc.note'))}${d.family === 'Solanaceae' ? ' ' + esc(t('cc.blightNote')) : ''}</p>`;
+  } catch (e) {
+    if (state.ccFor === key) box.innerHTML = `<p class="loading error">${esc(t('cc.failed', { error: e.message }))}</p>`;
   }
 }
 

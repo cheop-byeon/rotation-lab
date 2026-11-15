@@ -120,3 +120,19 @@ def test_what_changed_on_demo_record_offline(monkeypatch):
     assert all(x["change"] == round(x["now"] - x["then"], 2) for x in d["metrics"])
     assert m["frost_free_days"]["consistent"] and m["frost_free_days"]["change"] > 0 and m["frost_free_days"]["harder"] == -1
     assert all(x["consistent"] == (x["p_value"] < 0.05) for x in d["metrics"] if x["per_decade"] != 0)
+
+
+def test_potato_check_offline_reports_blight_weather_and_ripening(monkeypatch):
+    from fastapi.testclient import TestClient
+    from app import power
+    from app.main import app
+    monkeypatch.setattr(power, "DAILY_URL", "https://power.invalid/api")
+    with TestClient(app) as cl:
+        r = cl.get("/api/crop-check", params={"lat": 63.4695, "lon": 10.9679, "crop": "Potato"})
+        assert cl.get("/api/crop-check", params={"lat": 63.4695, "lon": 10.9679, "crop": "Banana"}).status_code == 404
+    d = r.json()
+    assert r.status_code == 200 and d["crop"] == "Potato"
+    codes = {m["code"] for m in d["measures"]}
+    assert "blight_days" in codes and "heat_days" in codes
+    assert d["ripened"]["then_of"] == 10 and d["ripened"]["now_of"] == 10
+    assert "not modelled" in d["method"] and "prices" in d["method"]

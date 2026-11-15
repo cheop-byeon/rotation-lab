@@ -70,6 +70,23 @@ export default {
     tooSmall: 'The field is too small to show stronger and weaker parts: satellite pixels are 30 m.',
     download: 'Download zone map (for farm machinery)',
   },
+  cc: {
+    title: 'Is it still a good choice here?',
+    crop: 'Crop',
+    ripened: 'Ripened in time in {now} of the last {nowOf} seasons, against {then} of {thenOf} in {range}.',
+    m: {
+      cycle_days: { up: 'It now spends about {now} days in the ground, {d} more than in {then}.', down: 'It now spends about {now} days in the ground, {d} fewer than in {then}.' },
+      heat_days: { up: 'Heat-stress days while it grows: about {now} a season, against {was} in {then}.', down: 'Heat-stress days while it grows: about {now} a season, against {was} in {then}.' },
+      water_pct: { up: 'Rain now covers about {now}% of its water use, against {was}% in {then}.', down: 'Rain now covers about {now}% of its water use, against {was}% in {then}.' },
+      blight_days: { up: 'Blight-weather days while it grows: about {now} a season, against {was} in {then}. Warm, humid spells favour late blight.', down: 'Blight-weather days while it grows: about {now} a season, against {was} in {then}.' },
+    },
+    name: { cycle_days: 'time in the ground', heat_days: 'heat stress', water_pct: 'water supply', blight_days: 'blight weather' },
+    noClear: 'No clear change in: {list}.',
+    thirsty: 'Rain covers only about {now}% of its water use here: it relies on irrigation or water stored in the soil.',
+    note: 'Climate side only: prices, contracts and costs are yours to weigh. “Ripened” means the simulated crop reached full maturity before frost; early varieties and early lifting or cutting are not modelled.',
+    blightNote: 'Blight-weather days are a daily stand-in for the official hourly rules. For spraying decisions, use the national warning service (VIPS in Norway).',
+    failed: 'Could not check this crop: {error}',
+  },
   changed: {
     title: 'What has changed here',
     loading: 'Reading NASA weather records since 1981…',

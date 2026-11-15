@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field, field_validator
 
 import json
 
-from . import agro, change, crops, hls, power, stress
+from . import agro, change, cropcheck, crops, hls, power, stress
 from .advisor import build_advisories
 from .db import connect, init_db
 
@@ -257,6 +257,18 @@ async def what_changed(lat: float = Query(ge=-60, le=75), lon: float = Query(ge=
         raise HTTPException(503, f"NASA POWER is unavailable and no cached data exists for this location: {exc}")
     return {**change.what_changed(agro.Climate(series)),
             "provenance": {"delivery": series.source, "retrieved_at": series.retrieved_at, "request_url": series.request_url}}
+
+
+@app.get("/api/crop-check")
+async def crop_check(lat: float = Query(ge=-60, le=75), lon: float = Query(ge=-180, le=180), crop: str = Query(min_length=1)):
+    """Is this crop still a good choice here? Then (1991–2000) versus now, from the full NASA POWER record."""
+    if crop not in crops.CROPS:
+        raise HTTPException(404, f"Unknown crop: {crop}")
+    try:
+        series = await power.fetch_daily(lat, lon, full=True)
+    except power.PowerUnavailable as exc:
+        raise HTTPException(503, f"NASA POWER is unavailable and no cached data exists for this location: {exc}")
+    return cropcheck.crop_then_now(agro.Climate(series), crop)
 
 
 @app.post("/api/vegetation")

@@ -193,6 +193,18 @@ The full record feeds **What has changed here** (field view) and **Then and now*
 - Stjørdal: frost-free season 133 → 151 days, last spring frost 25 May → 13 May, growing season +1.3 °C; no clear change in rain or dry spells.
   Orosháza: season 195 → 220 days, days above 30 °C 40 → 62 a season, +1.7 °C; no clear change in rain or dry spells.
 
+#### Is this crop still a good choice here?
+
+The crop-season simulation behind *Crops in your climate* is run over **every complete season since 1981** for one crop (any of the 13), and 1991–2000 is compared with the last ten seasons, counting each measure **while the crop is in the ground**:
+ripened before frost (count of seasons), days in the ground, heat-stress days above the crop's limit, rain as a share of its water use (Kc × ET₀), and for potatoes **blight-weather days**.
+
+- **Blight-weather day:** daily minimum ≥ 10 °C and daily mean humidity ≥ 85%. The official late-blight rules (Smith, Hutton) need *hourly* humidity; NASA POWER's daily record allows only this stand-in, so it shows how often the weather favours blight, not a warning. Both views point to the national warning service (VIPS in Norway) for spraying decisions.
+- **"Ripened"** means the simulated crop reached its full thermal time before a killing frost. Early varieties and lifting or cutting before full maturity are not modelled, so it understates where a crop is grown in practice (potatoes are grown around Stjørdal, yet the main-crop profile ripens in only 5 of the last 10 seasons). The change over time is the more useful signal. Both views say so.
+- Climate side only: prices, contracts and costs are the grower's to weigh.
+- **Potato, Stjørdal:** ripened in 1 of 10 seasons in 1991–2000 and 5 of 10 now; **blight-weather days 7 → 12 a season** (consistent, p < 0.001); no clear change in heat or water.
+  **Potato, Orosháza:** ripens every year; no clear change; rain covers only ~46% of its water use, consistent with irrigated potatoes there.
+  **Grain maize, Orosháza:** heat-stress days above 35 °C 8 → 13 a season (consistent).
+
 ### 3. NASA GIBS — satellite map layers
 
 Served as Web Mercator WMTS tiles from `gibs.earthdata.nasa.gov/wmts/epsg3857/best`. Dated layers default to the most recent
@@ -283,6 +295,7 @@ backend/app/
   power.py           NASA POWER client: daily + climatology, retries, SQLite cache, snapshot fallback
   agro.py            agroclimatic engine: ET₀, GDD, frost dates, seasons, anomalies, soil-moisture percentiles, splice detection
   crops.py           crop catalog, crop-season simulation/suitability, rotation ranking
+  cropcheck.py       is this crop still a good choice: one crop through every season since 1981, incl. blight weather
   change.py          then versus now: 1990s vs the last ten seasons from the full NASA POWER record
   stress.py          season check: weak seasons vs same-crop seasons, and the weather that stood out
   hls.py             NASA HLS field record: STAC search, Fmask cloud masking, NDVI/NDMI per image, season summaries,
@@ -298,6 +311,7 @@ scripts/snapshot.py  save offline copies of POWER data
 | `GET /api/analysis?lat&lon&soil&drainage&irrigation&previous_crop` | Full field analysis |
 | `POST /api/rotations/rank` | Rank rotations (optionally with the climate of `lat`/`lon`) |
 | `GET /api/layers` | NASA GIBS layer configuration |
+| `GET /api/crop-check?lat&lon&crop` | One crop through every season since 1981: ripening, heat, water, blight weather, then versus now |
 | `GET /api/change?lat&lon` | Then (1991–2000) versus now (last ten seasons) from the NASA POWER record since 1981 |
 | `POST /api/vegetation` `{boundary, seasons}` | NASA HLS NDVI/NDMI/EVI record for a field outline (GeoJSON Polygon); `seasons` optional (default: all since 2020); includes the productivity `trend` and the `season_check` (joined with NASA POWER weather) |
 | `POST /api/zones` `{boundary, seasons}` | Productivity zones from multi-season HLS EVI (30 m pixels, GeoJSON cells) |

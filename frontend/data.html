@@ -175,6 +175,14 @@
       <div class="data-table-wrap" style="max-height:none" id="change-table"><div class="empty-state">Awaiting analysis.</div></div>
       <p class="chart-note" id="change-method"></p>
     </div>
+    <div class="panel" style="margin-top:18px">
+      <div class="chart-title"><h3>One crop, then and now</h3><label class="mini-select">Crop <select id="cc-crop"></select></label>
+        <label class="mini-select">Measure <select id="cc-metric"></select></label></div>
+      <div id="cc-summary"></div>
+      <div class="chart-box"><canvas id="c-cropcheck" aria-label="The selected crop measure per season since 1981 with period averages"></canvas></div>
+      <div class="data-table-wrap" style="max-height:none" id="cc-table"></div>
+      <p class="chart-note" id="cc-method"></p>
+    </div>
   </section>
 
   <section class="section" id="satellite" aria-labelledby="sat-h">

@@ -65,7 +65,7 @@ async function analyze() {
     const d = await api.analysis(f);
     state.analysis = d;
     renderHero(d, f); renderTelemetry(d); renderAdvisories(d); renderCharts(d); renderTable(); renderSuitability(d); renderSeasons(d); renderProvenance(d, f);
-    renderSatellite(f, d); renderChange(f);
+    renderSatellite(f, d); renderChange(f); renderCropCheck(f);
     await rankPlans();
     const src = { live: 'live from NASA POWER', cache: 'from local cache', 'stale-cache': 'from an older cache (NASA POWER unreachable)', snapshot: 'from the offline snapshot' }[d.provenance.delivery];
     status(`Analysis complete · ${d.provenance.days.toLocaleString()} days of data ${src} · ${((performance.now() - t0) / 1000).toFixed(1)} s · latest day ${d.now.date}`, d.provenance.delivery === 'live' || d.provenance.delivery === 'cache' ? '' : 'error');
@@ -304,6 +304,39 @@ function finishBoundary() {
 
 const HINT_LABEL = { grass: 'Grass / ley', winter_crop: 'Autumn-sown', spring_crop: 'Spring-sown', late_crop: 'Late crop',
   bare: 'Bare / failed', unclear: 'Unclear', unknown: 'Too cloudy', unavailable: 'n/a (tropics)' };
+
+async function renderCropCheck(f) {
+  const sel = $('cc-crop');
+  if (!sel.options.length) {
+    const cat = state.crops.length ? state.crops : (await api.crops()).crops;
+    sel.innerHTML = cat.map((c) => `<option>${esc(c.name)}</option>`).join('');
+    sel.value = cat.some((c) => c.name === 'Potato') ? 'Potato' : cat[0].name;
+  }
+  const show = async () => {
+    const key = `${f.lat},${f.lon},${sel.value}`; state.ccFor = key;
+    $('cc-summary').innerHTML = '<div class="empty-state">Running the crop through every season since 1981…</div>';
+    try {
+      const d = await api.cropCheck(f.lat, f.lon, sel.value);
+      if (state.ccFor !== key) return;
+      const r = d.ripened, sign = (v) => `${v > 0 ? '+' : ''}${v}`;
+      $('cc-summary').innerHTML = `<p style="margin:0 0 10px">Reached maturity before frost in <b>${r.then} of ${r.then_of}</b> seasons ${esc(d.then)} and <b>${r.now} of ${r.now_of}</b> in ${esc(d.now)}.</p>`;
+      $('cc-table').innerHTML = `<table><thead><tr><th>Measure (while the crop is in the ground)</th><th class="num">${esc(d.then)}</th><th class="num">${esc(d.now)}</th>
+        <th class="num">Change</th><th class="num">Trend per decade</th><th class="num">Mann–Kendall p</th><th>Consistent</th></tr></thead><tbody>
+        ${d.measures.map((m) => `<tr${m.consistent ? ' class="row-strong"' : ''}><td>${esc(m.label)}</td><td class="num">${m.then}</td><td class="num">${m.now}</td>
+          <td class="num">${sign(m.change)} ${esc(m.unit)}</td><td class="num">${sign(m.per_decade)}</td><td class="num">${m.p_value < 0.001 ? '&lt; 0.001' : m.p_value}</td>
+          <td>${m.consistent ? 'yes' : '<span class="muted">no</span>'}</td></tr>`).join('')}</tbody></table>`;
+      $('cc-method').textContent = `${d.method} Crop profile: base ${d.params.base_c} °C, ${d.params.gdd} degree-days to maturity, sowing at a 7-day mean of ${d.params.sow_c} °C, heat stress above ${d.params.heat_limit_c} °C, Kc ${d.params.kc}.`;
+      const ms = $('cc-metric');
+      ms.innerHTML = d.measures.map((m) => `<option value="${m.code}">${esc(m.label)}</option>`).join('');
+      if (d.measures.some((m) => m.code === 'blight_days')) ms.value = 'blight_days';
+      const draw = () => renderChangeChart(d.measures.find((m) => m.code === ms.value), d, 'c-cropcheck');
+      ms.onchange = draw; draw();
+    } catch (e) {
+      $('cc-summary').innerHTML = `<div class="empty-state">Could not check this crop: ${esc(e.message)}</div>`;
+    }
+  };
+  sel.onchange = show; await show();
+}
 
 async function renderChange(f) {
   const key = `${f.lat},${f.lon}`; state.changeFor = key;

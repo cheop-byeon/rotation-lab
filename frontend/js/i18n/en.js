@@ -81,7 +81,7 @@ export default {
     tooFew: 'Too few clear seasons yet to see whether what is grown around you is shifting.',
     more: 'More of the land around you has been {type} over {range}.',
     less: 'Less of the land around you has been {type} over {range}.',
-    note: 'Map: {season}. Broad crop types read from satellite (30 m), not named crops or anyone’s records, and your own field is left out. Rough: in a check against official statistics for Stjørdal, spring-sown crops matched well, but grass and leys were undercounted (many show as late or unclear crops).',
+    note: 'Map: {season}. Broad crop types read from satellite (30 m), not named crops or anyone’s records, and your own field is left out. Rough: in a check against official statistics for Stjørdal, grass and spring-sown crops came within a few points, but late crops such as potatoes were overcounted.',
     failed: 'Could not read the area around your field: {error}',
   },
   cc: {

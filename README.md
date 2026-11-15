@@ -111,7 +111,7 @@ Advisories reach the field view as a language-neutral `code` plus `params` from 
 
 Both demo fields work **without internet**:
 
-- **Weather:** dated copies of the NASA POWER responses for the demo fields (`data/snapshots/daily_*.json`, `clim_*.json`).
+- **Weather:** dated copies of the NASA POWER responses for the demo fields, 1981 to today (`data/snapshots/dailyfull_*.json`, `clim_*.json`).
 - **Satellite record:** every NASA HLS image reading for the demo outlines, with per-pixel values for the zones (`data/snapshots/hls_*.json`).
 - **Libraries:** Leaflet and Chart.js are served from `frontend/vendor/` (copied from cdnjs and checked against its SRI hashes), not a CDN.
 
@@ -179,6 +179,19 @@ Soil percentiles and advisories use the last reanalysis day and state its date. 
 - **Parameters:** monthly means of `T2M`, `T2M_MAX`, `T2M_MIN`, `PRECTOTCORR`, `ALLSKY_SFC_SW_DWN`.
 - **Used for:** the monthly temperature and rainfall anomaly charts.
   Other "normal" comparisons (30-day rain, 7-day temperature, soil-moisture percentiles, GDD envelope) are computed from the same location's 10-year daily record.
+
+### 2b. NASA POWER — the full daily record since 1981 (then versus now)
+
+The daily download covers **1 January 1981 to today** in one request (about 2.7 MB, cached; one weather model, MERRA-2, through 2025).
+Everything about *your climate now* (conditions, frost dates, crop suitability, rotations, season tables) still uses **only the last 10 years**, so those results are unchanged.
+The full record feeds **What has changed here** (field view) and **Then and now** (data view):
+
+- Per complete season: frost-free season, last spring and first autumn frost, warmth for crops (GDD above 5 °C), growing-season mean temperature and rain (Apr–Sep north, Oct–Mar south), longest dry spell, heavy-rain days (≥ 20 mm), warm days (≥ 25 °C) and hot days (≥ 30 °C).
+- **1991–2000 is compared with the last ten seasons.** A change is called *consistent* only when the whole 1981–today record trends the same way (Theil–Sen slope, Mann–Kendall p < 0.05), so two decades that merely differ are not reported as climate change.
+- The field view lists consistent changes in plain words, without judging them good or bad (that depends on the grower's crops), and names the measures with no clear change.
+- For a ~50 km grid cell, not the field; grid-cell rain smooths out local downpours, so heavy-rain days are undercounted.
+- Stjørdal: frost-free season 133 → 151 days, last spring frost 25 May → 13 May, growing season +1.3 °C; no clear change in rain or dry spells.
+  Orosháza: season 195 → 220 days, days above 30 °C 40 → 62 a season, +1.7 °C; no clear change in rain or dry spells.
 
 ### 3. NASA GIBS — satellite map layers
 
@@ -270,6 +283,7 @@ backend/app/
   power.py           NASA POWER client: daily + climatology, retries, SQLite cache, snapshot fallback
   agro.py            agroclimatic engine: ET₀, GDD, frost dates, seasons, anomalies, soil-moisture percentiles, splice detection
   crops.py           crop catalog, crop-season simulation/suitability, rotation ranking
+  change.py          then versus now: 1990s vs the last ten seasons from the full NASA POWER record
   stress.py          season check: weak seasons vs same-crop seasons, and the weather that stood out
   hls.py             NASA HLS field record: STAC search, Fmask cloud masking, NDVI/NDMI per image, season summaries,
                      crop-type hints, EVI productivity zones, cache and offline snapshots
@@ -284,6 +298,7 @@ scripts/snapshot.py  save offline copies of POWER data
 | `GET /api/analysis?lat&lon&soil&drainage&irrigation&previous_crop` | Full field analysis |
 | `POST /api/rotations/rank` | Rank rotations (optionally with the climate of `lat`/`lon`) |
 | `GET /api/layers` | NASA GIBS layer configuration |
+| `GET /api/change?lat&lon` | Then (1991–2000) versus now (last ten seasons) from the NASA POWER record since 1981 |
 | `POST /api/vegetation` `{boundary, seasons}` | NASA HLS NDVI/NDMI/EVI record for a field outline (GeoJSON Polygon); `seasons` optional (default: all since 2020); includes the productivity `trend` and the `season_check` (joined with NASA POWER weather) |
 | `POST /api/zones` `{boundary, seasons}` | Productivity zones from multi-season HLS EVI (30 m pixels, GeoJSON cells) |
 | `GET /api/export.csv?lat&lon` | Daily NASA POWER data + ET₀ as CSV |

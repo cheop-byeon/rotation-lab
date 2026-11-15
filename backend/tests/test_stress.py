@@ -102,3 +102,21 @@ def test_current_season_weather_only_after_growing_months():
     assert agro.growing_months_over(FakeClimate(date(2026, 11, 13)))
     assert not agro.growing_months_over(FakeClimate(date(2026, 8, 1)))
     assert not agro.growing_months_over(type("T", (FakeClimate,), {"lat": 10.0})(date(2026, 12, 1)))
+
+
+# ---- then versus now (full NASA POWER record)
+def test_what_changed_on_demo_record_offline(monkeypatch):
+    from fastapi.testclient import TestClient
+    from app import power
+    from app.main import app
+    monkeypatch.setattr(power, "DAILY_URL", "https://power.invalid/api")
+    with TestClient(app) as cl:
+        r = cl.get("/api/change", params={"lat": 63.4695, "lon": 10.9679})
+    assert r.status_code == 200
+    d = r.json()
+    assert d["then"] == "1991–2000" and d["seasons"] >= 40
+    m = {x["code"]: x for x in d["metrics"]}
+    # shown values and change agree, and "consistent" needs the whole-record test
+    assert all(x["change"] == round(x["now"] - x["then"], 2) for x in d["metrics"])
+    assert m["frost_free_days"]["consistent"] and m["frost_free_days"]["change"] > 0 and m["frost_free_days"]["harder"] == -1
+    assert all(x["consistent"] == (x["p_value"] < 0.05) for x in d["metrics"] if x["per_decade"] != 0)

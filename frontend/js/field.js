@@ -166,7 +166,7 @@ async function analyze(f) {
     $('loading').textContent = '';
     $('results').hidden = false;
     renderNow(d); renderTodo(d); renderSeason(d); renderCrops(d); renderPrioChips(); await renderPlan(); renderSource(d);
-    renderSpace(f);
+    renderSpace(f); renderChanged(f);
   } catch (e) {
     $('loading').className = 'loading error';
     $('loading').textContent = t('app.failed', { error: e.message });
@@ -289,6 +289,33 @@ function renderCrops(d) {
       ${list.length ? `<div class="crop-grid">${list.map((s) => `<div class="crop"><span class="em" aria-hidden="true">${ICON[s.name] || '🌱'}</span>
         <div><b>${esc(cropName(s.name))}</b><span>${esc(cropReason(s))}</span></div></div>`).join('')}</div>` : `<p class="muted">${esc(t('crops.none'))}</p>`}</div>`;
   }).join('');
+}
+
+// ------------------------------------------------------------------ what has changed here (since the 1990s)
+async function renderChanged(f) {
+  const box = $('changed'), key = `${f.lat},${f.lon}`;
+  state.changeFor = key;
+  box.innerHTML = `<p class="loading">${esc(t('changed.loading'))}</p>`;
+  try {
+    const d = await api.change(f.lat, f.lon);
+    if (state.changeFor !== key) return;
+    // Days above 30 °C already say what days above 25 °C would; show the hotter one when both changed.
+    const both = ['warm_days', 'hot_days'].every((c) => d.metrics.find((m) => m.code === c)?.consistent);
+    const clear = d.metrics.filter((m) => m.consistent && !(both && m.code === 'warm_days'));
+    const rest = d.metrics.filter((m) => !m.consistent);
+    const pct = (m) => Math.round(100 * Math.abs(m.change) / (m.then || 1));
+    const whole = (m, v) => (m.unit === 'days' ? Math.round(v) : v);  // "about 114 days", not 114.3
+    const line = (m) => t(`changed.m.${m.code}.${m.change > 0 ? 'up' : 'down'}`, {
+      now: m.now_label || whole(m, m.now), was: m.then_label || whole(m, m.then), d: whole(m, Math.abs(m.change)), pct: pct(m), then: d.then });
+    box.innerHTML = `<p class="muted">${esc(t('changed.intro', { now: d.now, then: d.then }))}</p>
+      ${clear.length ? `<ul class="changes">${clear.map((m) => `<li>
+        <span class="arrow" aria-hidden="true">${m.change > 0 ? '▲' : '▼'}</span>${esc(line(m))}</li>`).join('')}</ul>`
+        : `<p>${esc(t('changed.noneClear'))}</p>`}
+      ${rest.length ? `<p>${esc(t('changed.noClear', { list: rest.map((m) => t(`changed.name.${m.code}`)).join(', ') }))}</p>` : ''}
+      <p class="muted small">${esc(t('changed.note', { record: d.record }))}</p>`;
+  } catch (e) {
+    if (state.changeFor === key) box.innerHTML = `<p class="loading error">${esc(t('changed.failed', { error: e.message }))}</p>`;
+  }
 }
 
 // ------------------------------------------------------------------ rotation plan

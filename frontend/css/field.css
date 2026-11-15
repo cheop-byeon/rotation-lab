@@ -47,6 +47,10 @@ main { max-width: 760px; margin: 0 auto; padding: 8px 16px 48px; }
 /* field */
 .field-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
 .field-name { margin: 0; font-size: 1.05rem; color: var(--ink-2); }
+.changes { list-style: none; padding: 0; margin: 10px 0; display: grid; gap: 8px; }
+.changes li { display: flex; gap: 10px; align-items: baseline; padding: 10px 12px; border-radius: 10px; background: var(--bg); border-left: 4px solid var(--line); }
+.changes .arrow { font-size: .8rem; color: #555; }
+.small { font-size: .85rem; }
 .link-btn { background: none; border: 0; padding: 0; font: inherit; color: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; }
 .demo-note { background: var(--amber-soft); color: #4D3500; border-radius: 12px; padding: 10px 14px; margin: 12px 0 0; font-size: .95rem; }
 .mini-map { height: 170px; border-radius: 14px; margin-top: 14px; overflow: hidden; background: #dfe6d8; }

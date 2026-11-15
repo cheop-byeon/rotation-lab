@@ -22,7 +22,7 @@
     <span>Rotation <b>Lab</b></span>
   </a>
   <nav class="topnav" aria-label="Sections">
-    <a href="#telemetry">Conditions</a><a href="#briefing">Briefing</a><a href="#signals">Trends</a><a href="#satellite">Satellite</a>
+    <a href="#telemetry">Conditions</a><a href="#briefing">Briefing</a><a href="#signals">Trends</a><a href="#change">Then &amp; now</a><a href="#satellite">Satellite</a>
     <a href="#crops">Crops</a><a href="#planner">Rotation</a><a href="#seasons">Seasons</a><a href="#provenance">Data</a>
   </nav>
   <div class="top-right">
@@ -166,6 +166,17 @@
   </section>
 
   <!-- SATELLITE -->
+  <section class="section" id="change" aria-labelledby="change-h">
+    <div class="section-head"><p class="tag">NASA POWER · 1981 → TODAY</p><h2 id="change-h">Then and now</h2>
+      <p>The same grid cell in the 1990s and in the last ten seasons, from the full daily record. A change is called consistent only when the whole record trends the same way.</p></div>
+    <div class="panel">
+      <div class="chart-title"><h3 id="change-chart-h">—</h3><label class="mini-select">Measure <select id="change-metric"></select></label></div>
+      <div class="chart-box"><canvas id="c-change" aria-label="Value per season since 1981 with the 1990s and recent averages"></canvas></div>
+      <div class="data-table-wrap" style="max-height:none" id="change-table"><div class="empty-state">Awaiting analysis.</div></div>
+      <p class="chart-note" id="change-method"></p>
+    </div>
+  </section>
+
   <section class="section" id="satellite" aria-labelledby="sat-h">
     <div class="section-head"><p class="tag">NASA HLS v2.0 · 30 M</p><h2 id="sat-h">Satellite crop record</h2>
       <p>NDVI and NDMI inside the field boundary from every Landsat 8/9 and Sentinel-2 image in HLS, cloud-masked with Fmask, one line per season, joined to the NASA POWER weather of the same season.</p></div>

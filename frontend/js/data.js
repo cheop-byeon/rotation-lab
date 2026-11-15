@@ -1,6 +1,6 @@
 import { api } from './api.js';
 import { createMap } from './map.js';
-import { renderCharts, tableFor, renderVegCharts } from './charts.js';
+import { renderCharts, tableFor, renderVegCharts, renderTrendChart } from './charts.js';
 import { createDrawer, centroid } from './draw.js';
 
 const $ = (id) => document.getElementById(id);
@@ -305,7 +305,30 @@ function finishBoundary() {
 const HINT_LABEL = { grass: 'Grass / ley', winter_crop: 'Autumn-sown', spring_crop: 'Spring-sown', late_crop: 'Late crop',
   bare: 'Bare / failed', unclear: 'Unclear', unknown: 'Too cloudy', unavailable: 'n/a (tropics)' };
 
+function renderTrend(tr, archive) {
+  renderTrendChart(tr);
+  const fmt = (v) => `${v > 0 ? '+' : ''}${v}% a year`;
+  const verdict = tr.status !== 'ok' ? `Not enough complete seasons to judge a trend (${tr.seasons.length} of ${tr.min_seasons} needed).`
+    : tr.direction === 'none' ? `No clear trend: ${fmt(tr.pct_per_year)}, Mann–Kendall p = ${tr.p_value} (${tr.n} seasons).`
+    : `Season-long greenness is <b>${tr.direction}</b>: ${fmt(tr.pct_per_year)}, p = ${tr.p_value} (${tr.n} seasons).`;
+  const same = tr.same_crop ? `<dt>Same crop only</dt><dd>${esc(tr.same_crop.crop.replace('_', ' '))} seasons: ${fmt(tr.same_crop.pct_per_year)}, p = ${tr.same_crop.p_value} (${tr.same_crop.n})</dd>` : '';
+  const skipped = tr.skipped.length ? `<dt>Skipped</dt><dd>${tr.skipped.map((s) => `${s.season}${s.gap_days ? ` (${s.gap_days}-day cloud gap)` : ''}`).join(', ')}</dd>` : '';
+  $('trend-info').innerHTML = `<p style="margin:0 0 10px">${verdict}</p><dl class="zone-stats">${same}${skipped}
+    <dt>Record</dt><dd>${esc(archive.note)}</dd></dl><p class="chart-note">${esc(tr.method)} Crop changes between seasons affect this; compare same-crop seasons.</p>`;
+}
+
 const ZONE_COLOUR = { weaker: '#c8801f', average: '#6b7684', stronger: '#2fa477' };
+
+function downloadZones(z, name) {
+  const fc = { type: 'FeatureCollection', name: `Rotation Lab productivity zones · ${name}`,
+    properties: { source: 'NASA HLS v2.0 EVI, 30 m', seasons: z.seasons_used.map((s) => s.season), method: z.method,
+      zone_id: { 0: 'edge (not classified)', 1: 'weaker', 2: 'average', 3: 'stronger' } },
+    features: z.cells.features.map((f) => ({ ...f, properties: { ...f.properties, zone_id: { edge: 0, weaker: 1, average: 2, stronger: 3 }[f.properties.zone] } })) };
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(fc)], { type: 'application/geo+json' }));
+  a.download = `zones_${name.replace(/[^\w-]+/g, '_')}.geojson`;
+  a.click(); URL.revokeObjectURL(a.href);
+}
 let zonesMap;
 async function renderZones(boundary, key) {
   try {
@@ -330,7 +353,9 @@ async function renderZones(boundary, key) {
       <dl class="zone-stats"><dt>Interior pixels</dt><dd>${z.interior_pixels} pixels, 30 m each</dd><dt>Variability (CV)</dt><dd>${(z.cv * 100).toFixed(1)}%${z.uniform ? ' · uniform field' : ''}</dd>
         <dt>Seasons</dt><dd>${z.seasons_used.map((s) => `${s.season} (${s.images})`).join(', ')}</dd><dt>Thresholds</dt><dd>&lt; ${z.thresholds.weaker_below} · &gt; ${z.thresholds.stronger_above} of field median</dd>
         <dt>Delivery</dt><dd>${esc(z.delivery)}</dd></dl>
-      <p class="chart-note">${esc(z.method)}</p>`;
+      <button class="btn" type="button" id="zones-dl">Download zone map (GeoJSON)</button>
+      <p class="chart-note">${esc(z.method)} The file has one 30 m square per pixel with a zone_id (1 weaker, 2 average, 3 stronger, 0 edge), for loading into farm-machinery software.</p>`;
+    $('zones-dl').onclick = () => downloadZones(z, $('f-name').value || 'field');
   } catch (e) {
     if (state.vegFor === key) $('zones-info').innerHTML = `<p class="chart-note">Zones unavailable: ${esc(e.message)}</p>`;
   }
@@ -341,7 +366,7 @@ async function renderSatellite(f, d) {
   if (!f.boundary) { panel.innerHTML = '<div class="empty-state">Draw a field boundary on the map, then press Analyze field.</div>'; return; }
   const key = JSON.stringify(f.boundary);
   state.vegFor = key;
-  panel.innerHTML = '<div class="mission-status busy"><span class="scanner"></span><span>Reading NASA HLS images inside the boundary (cloud-masked, 5 seasons)…</span></div>';
+  panel.innerHTML = '<div class="mission-status busy"><span class="scanner"></span><span>Reading NASA HLS images inside the boundary (cloud-masked, every season since 2020)…</span></div>';
   try {
     const veg = await api.vegetation(f.boundary);
     if (state.vegFor !== key) return;
@@ -354,19 +379,21 @@ async function renderSatellite(f, d) {
         chip('Delivery', { live: 'live', 'offline-cache': 'offline · local cache', snapshot: 'offline · saved snapshot' }[veg.delivery] || veg.delivery)].join('')}</div>
       <div class="season-key" id="season-key"></div>
       <div class="sat-grid">
-        <div><div class="chart-title"><h3>NDVI (greenness) inside the boundary</h3></div><div class="chart-box tall"><canvas id="c-ndvi" aria-label="NDVI by season"></canvas></div></div>
+        <div><div class="chart-title"><h3>Greenness inside the boundary</h3><div class="mini-switch" role="group" aria-label="Greenness index"><button type="button" data-g="ndvi" aria-pressed="true">NDVI</button><button type="button" data-g="evi" aria-pressed="false">EVI</button></div></div><div class="chart-box tall"><canvas id="c-ndvi" aria-label="Greenness by season"></canvas></div></div>
         <div><div class="chart-title"><h3>NDMI (canopy moisture) inside the boundary</h3></div><div class="chart-box tall"><canvas id="c-ndmi" aria-label="NDMI by season"></canvas></div></div>
       </div>
       <p class="chart-note">Each point is one image: the median of clear pixels inside the boundary; images with under ${Math.round(veg.method.min_clear_share * 100)}% of the field clear are dropped. Growing months only (${esc(veg.method.growing_months)}).</p>
       <div class="data-table-wrap" style="max-height:none"><table><thead><tr><th>Season</th><th>Crop-type hint</th><th class="num">Images</th><th class="num">Clear</th><th>Green-up</th><th>Peak date</th>
-        <th class="num">Peak NDVI</th><th class="num">Mean NDVI</th><th class="num">Peak NDMI</th><th class="num">Rain (frost-free)</th><th class="num">ET₀</th><th class="num">Longest dry spell</th><th class="num">Heat days</th></tr></thead><tbody>
+        <th class="num">Peak NDVI</th><th class="num">Mean NDVI</th><th class="num">Season EVI</th><th class="num">Peak NDMI</th><th class="num">Rain (frost-free)</th><th class="num">ET₀</th><th class="num">Longest dry spell</th><th class="num">Heat days</th></tr></thead><tbody>
         ${veg.seasons.map((s) => { const w = wx[s.label]; return `<tr><td><b>${esc(s.label)}</b></td><td title="${esc(s.crop_hint?.evidence ?? '')}">${esc(HINT_LABEL[s.crop_hint?.type] ?? '—')}</td><td class="num">${s.images}</td><td class="num">${s.clear_images}</td>
           <td>${s.greenup_date ? fmtDay(s.greenup_date) : s.greenup_cloud_gap ? '<span class="muted">cloud gap</span>' : '—'}</td><td>${s.peak_date ? fmtDay(s.peak_date) : '—'}</td>
-          <td class="num">${n(s.peak_ndvi)}</td><td class="num">${n(s.mean_ndvi)}</td><td class="num">${n(s.peak_ndmi)}</td>
+          <td class="num">${n(s.peak_ndvi)}</td><td class="num">${n(s.mean_ndvi)}</td><td class="num" title="${s.season_evi_mean == null && s.core_gap_days ? `skipped: ${s.core_gap_days}-day cloud gap` : ''}">${s.season_evi_mean == null ? (s.core_gap_days > 40 ? '<span class="muted">gap</span>' : '—') : n(s.season_evi_mean)}</td><td class="num">${n(s.peak_ndmi)}</td>
           <td class="num">${w ? w.season_rain_mm + ' mm' : '—'}</td><td class="num">${w ? w.season_et0_mm + ' mm' : '—'}</td><td class="num">${w ? w.longest_dry_spell + ' d' : '—'}</td><td class="num">${w ? w.heat_days : '—'}</td></tr>`; }).join('')}
       </tbody></table></div>
       <div class="zones-block"><div class="chart-title"><h3>Productivity zones (multi-season EVI)</h3></div>
         <div class="zones-grid"><div id="zones-map" class="zones-map"></div><div id="zones-info"><div class="mission-status busy"><span class="scanner"></span><span>Computing zones from every 30 m pixel…</span></div></div></div></div>
+      <div class="zones-block"><div class="chart-title"><h3>Productivity trend (season-long EVI, ${veg.trend.seasons.length ? `${veg.trend.seasons[0].season}–${veg.trend.seasons[veg.trend.seasons.length - 1].season}` : '—'})</h3></div>
+        <div class="zones-grid"><div class="chart-box"><canvas id="c-trend" aria-label="Season-long EVI by season with trend line"></canvas></div><div id="trend-info"></div></div></div>
       <p class="chart-note">Crop-type hints are rule-based on the curve shape (hover a hint for its evidence): ${esc(veg.method.crop_hint)}</p>
       <p class="chart-note">Weather columns come from NASA POWER for the same season (frost-free window); “—” where the season is not complete in the weather record.</p>
       <details><summary class="label" style="cursor:pointer">All ${veg.observations.length} image readings</summary><div class="data-table-wrap"><table><thead><tr><th>Date</th><th>Sensor</th><th class="num">Field clear</th><th class="num">Tile cloud</th><th class="num">NDVI</th><th class="num">NDMI</th></tr></thead><tbody>
@@ -374,8 +401,13 @@ async function renderSatellite(f, d) {
       </tbody></table></div></details>
       <p class="chart-note">${esc(veg.attribution)} · ${esc(veg.method.cloud_mask)} · NDVI ${esc(veg.method.ndvi)} · NDMI ${esc(veg.method.ndmi)} · bands: Sentinel-2 ${Object.values(veg.method.bands['Sentinel-2']).join('/')}, Landsat ${Object.values(veg.method.bands.Landsat).join('/')}.</p>`;
     renderZones(f.boundary, key);
-    const key2 = renderVegCharts(veg);
-    $('season-key').innerHTML = key2.map((k) => `<span><i style="background:${k.colour}"></i>${esc(k.label)}</span>`).join('');
+    const drawKey = (g) => { $('season-key').innerHTML = renderVegCharts(veg, g).map((k) => `<span><i style="background:${k.colour}"></i>${esc(k.label)}</span>`).join(''); };
+    drawKey('ndvi');
+    panel.querySelector('.mini-switch').onclick = (e) => {
+      const b = e.target.closest('[data-g]'); if (!b) return;
+      panel.querySelectorAll('.mini-switch button').forEach((x) => x.setAttribute('aria-pressed', x === b)); drawKey(b.dataset.g);
+    };
+    renderTrend(veg.trend, veg.archive);
   } catch (e) {
     if (state.vegFor === key) panel.innerHTML = `<div class="mission-status error">Satellite record unavailable: ${esc(e.message)}</div>`;
   }

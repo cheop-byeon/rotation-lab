@@ -90,7 +90,7 @@ which sat on Værnes airport, moved automatically.)
 **Outlining a field (both views).** Optional, but it unlocks the field's own satellite record. In the field view, open
 *Choose my field* → **Outline my field** and tap each corner, then **Done**. In the data view, use **Draw field boundary** in the map
 toolbar (the satellite overlay fades while you trace). The outline is saved with the field (0.3–2000 ha). The first satellite read
-takes ~10–20 s for five seasons, then it is cached.
+takes ~15–30 s for every season since 2020, then it is cached.
 
 **Data view (`/data`)**
 1. Click the map (or type `lat, lon` into *Go to*, or *Use my location*), set the field inputs and press **Analyze field**. Switch satellite layers and dates in the map toolbar.
@@ -197,9 +197,11 @@ The GIBS layers are for visual context. The numerical analysis uses NASA POWER o
 
 - **Product:** [HLS v2.0](https://lpdaac.usgs.gov/products/hlss30v002/) (Harmonized Landsat Sentinel-2) from NASA LP DAAC: 30 m surface reflectance from Landsat 8/9 (`L30`) and Sentinel-2 (`S30`), harmonised so both sensors can be used together.
 - **Access:** the copy hosted openly on [Microsoft Planetary Computer](https://planetarycomputer.microsoft.com/dataset/hls2-s30) (collections `hls2-s30`, `hls2-l30`), with an anonymous access token. **No Earthdata login needed.** Only the pixels inside the field are read, using HTTP range requests on the cloud-optimised GeoTIFFs.
-- **Per image:** pixels flagged by HLS **Fmask** as cloud, adjacent to cloud, cloud shadow, snow/ice or water are removed. Images with under 60% of the field clear are counted but give no value. **NDVI** = (NIR − Red)/(NIR + Red) and **NDMI** = (NIR − SWIR1)/(NIR + SWIR1), each the median over the clear pixels.
-  Bands: Sentinel-2 `B04`/`B8A`/`B11`, Landsat `B04`/`B05`/`B06`.
-- **Seasons:** the last five, growing months only (Apr–Oct north, Oct–Apr south, all year in the tropics). Per season: images, clear images, green-up date, peak NDVI and date, mean NDVI, peak NDMI. Green-up is reported as *hidden by cloud* when no clear image exists in the three weeks before it.
+- **Per image:** pixels flagged by HLS **Fmask** as cloud, adjacent to cloud, cloud shadow, snow/ice or water are removed. Images with under 60% of the field clear are counted but give no value. **NDVI** = (NIR − Red)/(NIR + Red), **NDMI** = (NIR − SWIR1)/(NIR + SWIR1) and **EVI** = 2.5 (NIR − Red)/(NIR + 6 Red − 7.5 Blue + 1), each the median over the clear pixels.
+  Bands: Sentinel-2 `B02`/`B04`/`B8A`/`B11`, Landsat `B02`/`B04`/`B05`/`B06`.
+  The data view switches the greenness chart between NDVI and EVI. The last five seasons are coloured, older ones grey.
+- **Archive:** the openly hosted HLS v2.0 collections start on **1 January 2020**, so the record covers every season from 2020 (seven seasons by 2026). NASA LP DAAC holds HLS back to 2013, but needs an Earthdata login, which the app avoids. The response says so (`archive.note`).
+- **Seasons:** every season in the archive (or the last *n* with `seasons`), growing months only (Apr–Oct north, Oct–Apr south, all year in the tropics). Per season: images, clear images, green-up date, peak NDVI and date, mean NDVI, peak NDMI. Green-up is reported as *hidden by cloud* when no clear image exists in the three weeks before it.
 - **Joined with weather:** the data view lines each satellite season up with the NASA POWER weather for the same season (rain, ET₀, longest dry spell, heat days). The field view names the least green season and checks whether that season's weather stands out. If all peaks are within 0.08 NDVI, it says no season stands out.
 - **Crop-type hints:** each season's curve is labelled *grass / ley* (green in late April–May and again in Sep–Oct), *autumn-sown* (green in spring, bare in autumn), *spring-sown* (bare until late May, peak before August), *late crop* (peak in August or later), *bare / failed* (peak NDVI below 0.5), *unclear*, or *too cloudy*.
   Each hint carries its evidence. The rules are for temperate seasons; southern dates are shifted six months, and the tropics are not covered.
@@ -213,6 +215,13 @@ The GIBS layers are for visual context. The numerical analysis uses NASA POWER o
   If under 10% of the interior differs, the field is reported as uniform; with fewer than 8 interior pixels, as too small.
   The zones are **uncalibrated**: satellite greenness, not measured yield. Both views say so.
   Inspired by DigiFarm's productivity zones, which are calibrated on Norwegian yield data; ours are not.
+  **Download:** both views export the zone map as GeoJSON: one 30 m square per pixel with `zone` and `zone_id` (1 weaker, 2 average, 3 stronger, 0 edge), relative EVI and consistency, ready to load into farm-machinery or GIS software for variable-rate planning.
+- **Productivity trend:** is the field's season-long greenness rising or falling over the years?
+  Per season, the clear-image EVI values are interpolated into a daily curve and averaged over the growing window. A season is **skipped** when the core window (15 May–15 Sep, northern dates) has a cloud gap over 40 days or fewer than 8 clear images, because one missing month can move the mean more than any real trend. Skipped seasons are listed with their gap.
+  The slope is a **Theil–Sen** estimate (robust to one odd season), tested with **Mann–Kendall**. A trend is reported only with at least 6 usable seasons, p < 0.1 and a slope of at least 1% of the mean per year; otherwise it says "no clear trend" or "too few seasons".
+  Crop changes confound it (a ley is greener than a cereal), so it also reports the trend among seasons with the same likely crop when there are at least 4.
+  On the Stjørdal test fields: one has no clear trend (−0.8%/yr, p 0.45, 6 seasons); the demo field has too few complete seasons (2024 and 2026 lost 43–44 days of June to cloud).
+  Inspired by DigiFarm's sustainability index; with HLS from 2020 the record is short, so this is a first look, not a verdict.
 - **Cross-checks seen in testing (Stjørdal):** Sentinel-2 and Landsat values from the same day agree within about 0.02 NDVI, and emergence in early June matches the weather-based sowing window.
 - **Limits:** cloudy regions have gaps. A 30 m pixel needs fields of at least 0.3 ha, and edge pixels mix with the neighbouring land. NDVI differences between seasons also reflect *which crop* was grown.
 
@@ -260,7 +269,7 @@ scripts/snapshot.py  save offline copies of POWER data
 | `GET /api/analysis?lat&lon&soil&drainage&irrigation&previous_crop` | Full field analysis |
 | `POST /api/rotations/rank` | Rank rotations (optionally with the climate of `lat`/`lon`) |
 | `GET /api/layers` | NASA GIBS layer configuration |
-| `POST /api/vegetation` `{boundary, seasons}` | NASA HLS NDVI/NDMI record for a field outline (GeoJSON Polygon) |
+| `POST /api/vegetation` `{boundary, seasons}` | NASA HLS NDVI/NDMI/EVI record for a field outline (GeoJSON Polygon); `seasons` optional (default: all since 2020); includes the productivity `trend` |
 | `POST /api/zones` `{boundary, seasons}` | Productivity zones from multi-season HLS EVI (30 m pixels, GeoJSON cells) |
 | `GET /api/export.csv?lat&lon` | Daily NASA POWER data + ET₀ as CSV |
 | `GET/POST/PUT/DELETE /api/fields` | Saved fields |
@@ -293,7 +302,7 @@ The crop parameters, the scoring rules and the viability gate still need review 
 ### Optional datasets
 
 - **Satellite vegetation comparison.** Use two comparable Sentinel-2 L2A acquisitions over the parcel. Retain acquisition dates, product IDs, valid-pixel coverage, red (B04), near infrared (B08), and the scene classification layer for masking. Compute NDVI after masking and clipping. Interpret changes alongside crop stage and management history. [Copernicus Sentinel-2 L2A](https://documentation.dataspace.copernicus.eu/APIs/SentinelHub/Data/S2L2A.html)
-  *Partly done: with a drawn outline, the app reads a 30 m NDVI/NDMI record from NASA HLS (Landsat + Sentinel-2) for the last five seasons. Native 10 m Sentinel-2 is not used.*
+  *Partly done: with a drawn outline, the app reads a 30 m NDVI/NDMI record from NASA HLS (Landsat + Sentinel-2) for every season since 2020, with productivity zones, a zone-map download and a season-long EVI trend. Native 10 m Sentinel-2 is not used.*
 - **Terrain for geographic 3D.** Obtain a digital elevation model covering the same parcel, with resolution, vertical datum, and usage terms recorded.
   *The mockup's illustrative 3D field preview was not carried over into this platform.*
 

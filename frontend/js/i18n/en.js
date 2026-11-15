@@ -42,7 +42,7 @@ export default {
   },
   space: {
     title: 'Your field from space',
-    noOutline: 'Outline your field to see how its crops grew in each of the last five seasons, from NASA satellite images (30 m).',
+    noOutline: 'Outline your field to see how its crops grew in every season since 2020, from NASA satellite images (30 m).',
     outlineBtn: 'Outline my field',
     loading: 'Reading NASA satellite images of your field… the first time can take up to a minute.',
     failed: 'Could not read the satellite images: {error}',
@@ -74,6 +74,13 @@ export default {
     uniform: 'Your field grows evenly: no clear weaker or stronger parts over {n} seasons.',
     note: 'This is satellite greenness, not measured yield. Weaker spots are worth a look on the ground: drainage, soil depth, compaction.',
     tooSmall: 'The field is too small to show stronger and weaker parts: satellite pixels are 30 m.',
+    download: 'Download zone map (for farm machinery)',
+  },
+  trend: {
+    none: 'Over {range}, the field’s season-long greenness shows no clear upward or downward trend.',
+    rising: 'Over {range}, the field’s season-long greenness has been rising, about {pct}% a year. Crop changes can play a part.',
+    falling: 'Over {range}, the field’s season-long greenness has been falling, about {pct}% a year. Crop changes can play a part; worth comparing with your records.',
+    tooFew: 'Too few cloud-free seasons to judge a long-term trend yet ({n} of {need} needed).',
   },
   now: {
     title: 'Right now',

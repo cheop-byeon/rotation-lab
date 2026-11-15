@@ -136,3 +136,42 @@ def test_zones_say_uniform_or_too_small():
     assert z["status"] == "ok" and z["uniform"]
     tiny = hls.compute_zones(_px_obs([[0.6] * 3 for _ in range(3)], dates), _utm_square_geom(3), 63.0)
     assert tiny["status"] == "too_small"
+
+
+def _season(year, level, every=10):
+    """A smooth synthetic EVI curve for one northern season, scaled by `level`."""
+    from datetime import date as _d, timedelta as _td
+    out, d = [], _d(year, 4, 1)
+    while d <= _d(year, 10, 31):
+        doy = d.timetuple().tm_yday
+        out.append({"date": d.isoformat(), "evi": round(level * max(0.1, 1 - ((doy - 196) / 70) ** 2), 4), "ndvi": 0.5, "ndmi": 0.1})
+        d += _td(days=every)
+    return out
+
+
+def test_season_evi_mean_needs_a_gap_free_core():
+    assert hls.season_evi_mean(_season(2024, 0.6), 2024, 63) is not None
+    gappy = [o for o in _season(2024, 0.6) if not ("2024-06-01" <= o["date"] <= "2024-07-31")]
+    assert hls.season_evi_mean(gappy, 2024, 63) is None          # 2-month cloud gap: skipped, not guessed
+    assert hls.season_evi_mean(_season(2024, 0.6), 2024, -0.3) is None   # tropics: no fixed window
+
+
+def _seasons(levels, start=2020, crop="grass"):
+    return [{"season": start + i, "season_evi_mean": hls.season_evi_mean(_season(start + i, lv), start + i, 63),
+             "crop_hint": {"type": crop}} for i, lv in enumerate(levels)]
+
+
+def test_trend_detects_a_steady_decline_and_ignores_noise():
+    falling = hls.productivity_trend(_seasons([0.70, 0.67, 0.64, 0.61, 0.58, 0.55, 0.52]))
+    assert falling["direction"] == "falling" and falling["pct_per_year"] < -1 and falling["same_crop"]["n"] == 7
+    noisy = hls.productivity_trend(_seasons([0.60, 0.63, 0.59, 0.62, 0.60, 0.61, 0.60]))
+    assert noisy["direction"] == "none"
+    short = hls.productivity_trend(_seasons([0.6, 0.62, 0.64]))
+    assert short["status"] == "too_few"
+
+
+def test_default_seasons_follow_the_archive():
+    from datetime import date as _d
+    assert hls.default_seasons(63, _d(2026, 11, 15)) == 7          # 2020..2026
+    assert hls.season_range(63, None, _d(2026, 11, 15))[0] == "2020-01-01"
+    assert hls.season_range(-34, None, _d(2026, 11, 15))[0] >= "2020-01-01"

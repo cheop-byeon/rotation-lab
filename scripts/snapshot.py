@@ -31,7 +31,7 @@ def main(points):
             asyncio.run(weather(lat, lon))
         return
     asyncio.run(weather(DEMO_FIELD["lat"], DEMO_FIELD["lon"]))
-    record = hls.field_record(DEMO_FIELD["boundary"], seasons=5)
+    record = hls.field_record(DEMO_FIELD["boundary"], seasons=None)
     print(f"HLS: {record['stats']['images_found']} images, {record['stats']['clear_images']} clear ({record['delivery']})")
     print("saved", hls.save_snapshot(DEMO_FIELD["boundary"]))
 

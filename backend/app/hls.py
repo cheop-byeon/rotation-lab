@@ -40,6 +40,7 @@ COLLECTIONS = {
     "hls2-l30": {"sensor": "Landsat", "blue": "B02", "red": "B04", "nir": "B05", "swir": "B06"},
 }
 ATTRIBUTION = "NASA HLS v2.0 (LP DAAC), accessed via Microsoft Planetary Computer"
+ARCHIVE_START = date(2020, 1, 1)  # Planetary Computer's HLS v2.0 collections start here (NASA LP DAAC goes back to 2013)
 SCENE_CLOUD_MAX = 80      # skip images whose whole-tile cloud cover is above this
 MIN_CLEAR = 0.6           # share of the field that must be clear to use an image
 FILL = -9999
@@ -127,11 +128,20 @@ def in_growing_months(d: date, lat: float) -> bool:
     return 4 <= d.month <= 10 if lat > 0 else (d.month >= 10 or d.month <= 4)
 
 
-def season_range(lat: float, seasons: int, today: date) -> tuple[str, str]:
+def default_seasons(lat: float, today: date) -> int:
+    """Every season the openly hosted HLS archive covers."""
     current, _ = season_of(today, lat)
-    first = current - seasons + 1
+    first, _ = season_of(ARCHIVE_START, lat)
+    if lat < 0:
+        first += 1  # the first southern season (Jul–Jun) that starts after the archive does
+    return current - first + 1
+
+
+def season_range(lat: float, seasons: int | None, today: date) -> tuple[str, str]:
+    current, _ = season_of(today, lat)
+    first = current - (seasons or default_seasons(lat, today)) + 1
     start = date(first, 1, 1) if lat >= 0 else date(first - 1, 7, 1)
-    return start.isoformat(), today.isoformat()
+    return max(start, ARCHIVE_START).isoformat(), today.isoformat()
 
 
 # ---------------------------------------------------------------- catalogue + access
@@ -176,7 +186,7 @@ def read_item(item: dict, geom: dict, token: str) -> dict:
     spec = COLLECTIONS[item["collection"]]
     href = lambda band: f"{item['assets'][band]['href']}?{token}"  # noqa: E731
     obs = {"id": item["id"], "date": item["properties"]["datetime"][:10], "sensor": spec["sensor"],
-           "scene_cloud": item["properties"].get("eo:cloud_cover"), "ndvi": None, "ndmi": None,
+           "scene_cloud": item["properties"].get("eo:cloud_cover"), "ndvi": None, "ndmi": None, "evi": None,
            "clear_pct": 0.0, "pixels": 0}
     with rasterio.Env(**GDAL_ENV):
         with rasterio.open(href("Fmask")) as src:
@@ -195,18 +205,21 @@ def read_item(item: dict, geom: dict, token: str) -> dict:
         if obs["clear_pct"] < MIN_CLEAR:
             return obs
         bands = {}
-        for key in ("red", "nir", "swir"):
+        for key in ("blue", "red", "nir", "swir"):
             with rasterio.open(href(spec[key])) as src:
                 bands[key] = src.read(1, window=win, boundless=True, fill_value=FILL).astype("float32")
-    valid = clear & (bands["red"] != FILL) & (bands["nir"] != FILL) & (bands["swir"] != FILL)
+    valid = clear & np.all([bands[k] != FILL for k in ("blue", "red", "nir", "swir")], axis=0)
     if valid.sum() < 3:
         return obs
-    red, nir, swir = (bands[k][valid] * SCALE for k in ("red", "nir", "swir"))
+    blue, red, nir, swir = (bands[k][valid] * SCALE for k in ("blue", "red", "nir", "swir"))
     with np.errstate(divide="ignore", invalid="ignore"):
         ndvi = (nir - red) / (nir + red)
         ndmi = (nir - swir) / (nir + swir)
+        evi = 2.5 * (nir - red) / (nir + 6 * red - 7.5 * blue + 1)
+    evi = evi[(evi > -1) & (evi < 1.5)]
     obs["ndvi"] = round(float(np.nanmedian(ndvi)), 3)
     obs["ndmi"] = round(float(np.nanmedian(ndmi)), 3)
+    obs["evi"] = round(float(np.nanmedian(evi)), 3) if evi.size else None
     return obs
 
 
@@ -340,7 +353,7 @@ def compute_zones(px_obs: list[dict], geom: dict, lat: float) -> dict:
                       "Uncalibrated: satellite greenness, not measured yield."}
 
 
-def field_zones(geom: dict, seasons: int = 5, today: date | None = None, workers: int = 12) -> dict:
+def field_zones(geom: dict, seasons: int | None = None, today: date | None = None, workers: int = 12) -> dict:
     today = today or date.today()
     lat, _ = centroid(geom)
     start, end = season_range(lat, seasons, today)
@@ -466,6 +479,96 @@ def crop_hint(obs: list[dict], lat: float) -> dict:
     return {"type": kind, "evidence": ev}
 
 
+# ---------------------------------------------------------------- season-long greenness and long-term trend
+MAX_GAP_DAYS = 40      # longest cloud gap allowed inside the core of the season when integrating
+MIN_TREND_SEASONS = 6
+
+
+def season_evi_mean(obs: list[dict], season: int, lat: float) -> float | None:
+    """Mean EVI over the growing window from a linearly interpolated curve (an area-under-curve proxy).
+
+    Interpolation avoids bias from when the clear images happened to fall. Seasons with a cloud gap
+    over MAX_GAP_DAYS inside the core of the window are skipped rather than guessed.
+    """
+    if abs(lat) < 23.5:
+        return None
+    import datetime as _dt
+    if lat >= 0:
+        a, b, core_a, core_b = _dt.date(season, 4, 1), _dt.date(season, 10, 31), _dt.date(season, 5, 15), _dt.date(season, 9, 15)
+    else:
+        a, b, core_a, core_b = _dt.date(season - 1, 10, 1), _dt.date(season, 4, 30), _dt.date(season - 1, 11, 15), _dt.date(season, 3, 15)
+    pts = sorted((date.fromisoformat(o["date"]), o["evi"]) for o in obs if o.get("evi") is not None and a <= date.fromisoformat(o["date"]) <= b)
+    if len(pts) < 8:
+        return None
+    days = [d for d, _ in pts]
+    inner = [d for d in days if core_a <= d <= core_b]
+    edges = [core_a] + inner + [core_b]
+    if not inner or max((y - x).days for x, y in zip(edges, edges[1:])) > MAX_GAP_DAYS:
+        return None
+    t = np.array([(d - a).days for d in days], dtype=float)
+    v = np.array([e for _, e in pts], dtype=float)
+    grid = np.arange(0, (b - a).days + 1, dtype=float)
+    return round(float(np.mean(np.interp(grid, t, v))), 4)  # flat beyond the first/last image
+
+
+def core_gap_days(obs: list[dict], season: int, lat: float) -> int | None:
+    """Longest run without a clear EVI image inside the core of the season (for explaining skipped seasons)."""
+    if abs(lat) < 23.5:
+        return None
+    import datetime as _dt
+    core_a, core_b = ((_dt.date(season, 5, 15), _dt.date(season, 9, 15)) if lat >= 0
+                      else (_dt.date(season - 1, 11, 15), _dt.date(season, 3, 15)))
+    inner = sorted(date.fromisoformat(o["date"]) for o in obs if o.get("evi") is not None and core_a <= date.fromisoformat(o["date"]) <= core_b)
+    edges = [core_a] + inner + [core_b]
+    return max((y - x).days for x, y in zip(edges, edges[1:]))
+
+
+def _theil_sen(x: list[float], y: list[float]) -> float:
+    slopes = [(y[j] - y[i]) / (x[j] - x[i]) for i in range(len(x)) for j in range(i + 1, len(x)) if x[j] != x[i]]
+    return float(np.median(slopes))
+
+
+def _mann_kendall_p(y: list[float]) -> float:
+    n = len(y)
+    s_ = sum(np.sign(y[j] - y[i]) for i in range(n) for j in range(i + 1, n))
+    var = n * (n - 1) * (2 * n + 5) / 18
+    z = (s_ - np.sign(s_)) / math.sqrt(var) if s_ else 0.0
+    return 2 * (1 - 0.5 * (1 + math.erf(abs(z) / math.sqrt(2))))
+
+
+def productivity_trend(season_list: list[dict]) -> dict:
+    """Long-term direction of season-long greenness (the idea behind DigiFarm's Sustainability Index)."""
+    pts = [(s["season"], s["season_evi_mean"], s.get("crop_hint", {}).get("type")) for s in season_list if s.get("season_evi_mean") is not None]
+    skipped = [{"season": s["season"], "gap_days": s.get("core_gap_days")} for s in season_list if s.get("season_evi_mean") is None]
+    out = {"seasons": [{"season": a, "evi_mean": b, "crop": c} for a, b, c in pts], "skipped": skipped, "min_seasons": MIN_TREND_SEASONS,
+           "max_gap_days": MAX_GAP_DAYS,
+           "method": "Season-long mean EVI (interpolated curve, growing window); Theil–Sen slope; Mann–Kendall test. "
+                     "A trend is reported only with p < 0.1 and a slope of at least 1% of the mean per year."}
+    if len(pts) < MIN_TREND_SEASONS:
+        return {**out, "status": "too_few", "direction": None}
+    x, y = [p[0] for p in pts], [p[1] for p in pts]
+    mean = float(np.mean(y))
+    slope = _theil_sen(x, y)
+    pct = 100 * slope / mean
+    p = _mann_kendall_p(y)
+    direction = ("rising" if pct > 0 else "falling") if (p < 0.1 and abs(pct) >= 1) else "none"
+    out.update(status="ok", direction=direction, slope_per_year=round(slope, 4), pct_per_year=round(pct, 1),
+               p_value=round(p, 3), first=x[0], last=x[-1], n=len(pts))
+    b0 = float(np.median([b - slope * a for a, b in zip(x, y)]))
+    out["fit"] = [[a, round(b0 + slope * a, 4)] for a in (x[0], x[-1])]  # line endpoints (rounding the slope would shift the line)
+    # crop changes confound the overall trend: also report it among seasons with the same likely crop
+    kinds = [c for c in (p_[2] for p_ in pts) if c in ("grass", "spring_crop", "winter_crop", "late_crop")]
+    if kinds:
+        top = max(set(kinds), key=kinds.count)
+        same = [(a, b) for a, b, c in pts if c == top]
+        if len(same) >= 4:
+            xs, ys = [a for a, _ in same], [b for _, b in same]
+            s2 = _theil_sen(xs, ys)
+            out["same_crop"] = {"crop": top, "n": len(same), "pct_per_year": round(100 * s2 / float(np.mean(ys)), 1),
+                                "p_value": round(_mann_kendall_p(ys), 3)}
+    return out
+
+
 # ---------------------------------------------------------------- summary
 def summarise_season(obs: list[dict]) -> dict:
     good = sorted((o for o in obs if o["ndvi"] is not None), key=lambda o: o["date"])
@@ -489,7 +592,7 @@ def summarise_season(obs: list[dict]) -> dict:
             "peak_ndmi": max(o["ndmi"] for o in good if o["ndmi"] is not None)}
 
 
-def field_record(geom: dict, seasons: int = 5, today: date | None = None, workers: int = 12) -> dict:
+def field_record(geom: dict, seasons: int | None = None, today: date | None = None, workers: int = 12) -> dict:
     today = today or date.today()
     lat, lon = centroid(geom)
     start, end = season_range(lat, seasons, today)
@@ -513,8 +616,8 @@ def field_record(geom: dict, seasons: int = 5, today: date | None = None, worker
                           "images_failed": 0}, t0)
     items = [it for it in items if in_growing_months(date.fromisoformat(it["properties"]["datetime"][:10]), lat)]
     keys = {it["id"]: f"{bkey}:{it['id']}" for it in items}
-    cached = _cache_get(list(keys.values()))
-    todo = [it for it in items if keys[it["id"]] not in cached]
+    cached = {k: v for k, v in _cache_get(list(keys.values())).items() if "evi" in v or v["ndvi"] is None}
+    todo = [it for it in items if keys[it["id"]] not in cached]  # readings cached before EVI was added are re-read once
     fresh, failed = [], 0
 
     def work(it):
@@ -550,12 +653,15 @@ def _assemble(geom, bkey, lat, lon, start, end, all_obs, delivery, counts, t0) -
     for o in obs:
         y, label = season_of(date.fromisoformat(o["date"]), lat)
         by_season.setdefault(y, {"season": y, "label": label, "obs": []})["obs"].append(o)
-    season_list = [{"season": s["season"], "label": s["label"], **summarise_season(s["obs"]), "crop_hint": crop_hint(s["obs"], lat)}
+    season_list = [{"season": s["season"], "label": s["label"], **summarise_season(s["obs"]), "crop_hint": crop_hint(s["obs"], lat),
+                    "season_evi_mean": season_evi_mean(s["obs"], s["season"], lat), "core_gap_days": core_gap_days(s["obs"], s["season"], lat), "peak_evi": max((o["evi"] for o in s["obs"] if o.get("evi") is not None), default=None)}
                    for s in sorted(by_season.values(), key=lambda s: s["season"])]
     return {
         "boundary_key": bkey, "area_ha": round(area_ha(geom), 2), "centroid": {"lat": round(lat, 5), "lon": round(lon, 5)},
         "period": {"start": start, "end": end}, "seasons": season_list,
-        "observations": [{k: o[k] for k in ("date", "sensor", "ndvi", "ndmi", "clear_pct", "scene_cloud")} for o in obs],
+        "observations": [{**{k: o[k] for k in ("date", "sensor", "ndvi", "ndmi", "clear_pct", "scene_cloud")}, "evi": o.get("evi")} for o in obs],
+        "trend": productivity_trend(season_list),
+        "archive": {"start": ARCHIVE_START.isoformat(), "note": "Openly hosted HLS v2.0 starts in 2020; NASA LP DAAC (Earthdata login) goes back to 2013."},
         "delivery": delivery,
         "stats": {**counts, "clear_images": sum(1 for o in obs if o["ndvi"] is not None), "seconds": round(time.time() - t0, 1)},
         "method": {"cloud_mask": "HLS Fmask: cloud, adjacent cloud, shadow, snow/ice, water removed",

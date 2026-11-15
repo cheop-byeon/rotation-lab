@@ -2,6 +2,7 @@
 import { api } from './api.js';
 import en from './i18n/en.js';
 import { createDrawer, areaHa, centroid } from './draw.js';
+import { spotFromUrl, spotQuery, fieldFromSpot, areaOf } from './records.js';
 
 const STR = en; // swap for another language file to translate the field view
 const $ = (id) => document.getElementById(id);
@@ -112,18 +113,28 @@ async function soilHint(lat, lon) {
 function renderField() {
   const f = state.field;
   $('field-name').textContent = f ? `${f.name} · ${f.lat.toFixed(2)}, ${f.lon.toFixed(2)}` : '—';
-  $('demo-note').hidden = !f?.demo;
+  $('demo-note').hidden = !f?.demo && !f?.from_records;
   // Demo fields: offer any other ones so each can be shown without setup.
   const others = state.fields.filter((d) => d.demo && d.id !== f?.id);
-  $('demo-note').innerHTML = esc(t('field.demoNote')) + (others.length ? ` ${esc(t('field.otherDemo'))} ${others.map((d) =>
+  $('demo-note').innerHTML = f?.from_records ? esc(t('field.fromRecords')) : esc(t('field.demoNote')) + (others.length ? ` ${esc(t('field.otherDemo'))} ${others.map((d) =>
     `<button type="button" class="link-btn" data-demo="${d.id}">${esc(d.name)}</button>`).join(', ')}` : '');
   $('demo-note').querySelectorAll('[data-demo]').forEach((b) => { b.onclick = () => switchField(+b.dataset.demo); });
   $('choose-btn').textContent = t(f && !f.demo ? 'field.change' : 'field.choose');
   if (f) showMini(f);
   // Keep the two views on the same field: links to the data view carry it, and so does this page's address.
-  const q = !f ? '' : f.id ? `?field=${f.id}` : `?${new URLSearchParams({ lat: f.lat, lon: f.lon, name: f.name || '' })}`;
+  const q = !f ? '' : f.id ? `?field=${f.id}` : f.spot ? `?${spotQuery(f.spot)}` : `?${new URLSearchParams({ lat: f.lat, lon: f.lon, place: f.name || '' })}`;
+  renderCrumbs(f);
   document.querySelectorAll('a[data-anchor]').forEach((a) => { a.href = `/data${q}${a.dataset.anchor ? '#' + a.dataset.anchor : ''}`; });
   if (f?.id) history.replaceState(null, '', `?field=${f.id}`);
+}
+
+// "All areas › <area> › <this land>": where this piece of land sits, with a way back up.
+async function renderCrumbs(f) {
+  $('crumb-here').textContent = f?.name || '';
+  const a = f ? await areaOf(f) : null;
+  if (state.field !== f) return;
+  $('crumb-area').hidden = !a;
+  if (a) { $('crumb-area-link').textContent = a.name; $('crumb-area-link').href = `/?area=${a.code}`; }
 }
 
 function switchField(id) {
@@ -751,8 +762,12 @@ async function boot() {
   try {
     const [cat, fields] = await Promise.all([api.crops(), api.fields()]);
     state.catalog = cat.crops; state.fields = fields;
-    const want = Number(new URLSearchParams(location.search).get('field'));  // ?field=<id> opens that field (handy for demos)
-    state.field = fields.find((f) => f.id === want) || fields.find((f) => !f.demo) || fields[0] || null;
+    const qs = new URLSearchParams(location.search);
+    const want = Number(qs.get('field'));  // ?field=<id> opens that field (handy for demos)
+    // ?lat=&lon=&place=&area= (a farm dot in the area view) opens that spot's land, filled from public records.
+    const spot = spotFromUrl(qs);
+    state.field = (spot ? await fieldFromSpot(spot, (place) => t('field.nearName', { place })) : null)
+      || fields.find((f) => f.id === want) || fields.find((f) => !f.demo) || fields[0] || null;
     renderField();
     if (state.field) analyze(state.field); else openChooser();
   } catch (e) {

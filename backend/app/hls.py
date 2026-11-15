@@ -210,7 +210,9 @@ def read_item(item: dict, geom: dict, token: str) -> dict:
         for key in ("blue", "red", "nir", "swir"):
             with rasterio.open(href(spec[key])) as src:
                 bands[key] = src.read(1, window=win, boundless=True, fill_value=FILL).astype("float32")
-    valid = clear & np.all([bands[k] != FILL for k in ("blue", "red", "nir", "swir")], axis=0)
+    # Reflectance must be positive: HLS has a few slightly negative values (dark water, shadow, atmospheric
+    # over-correction), and a negative red band pushes NDVI above 1.
+    valid = clear & np.all([(bands[k] != FILL) & (bands[k] > 0) for k in ("blue", "red", "nir", "swir")], axis=0)
     if valid.sum() < 3:
         return obs
     blue, red, nir, swir = (bands[k][valid] * SCALE for k in ("blue", "red", "nir", "swir"))
@@ -810,6 +812,10 @@ def _assemble(geom, bkey, lat, lon, start, end, all_obs, delivery, counts, t0) -
         if k not in best or (o["clear_pct"] * o["pixels"]) > (best[k]["clear_pct"] * best[k]["pixels"]):
             best[k] = o
     obs = sorted(best.values(), key=lambda o: o["date"])
+    for o in obs:  # readings cached before the positive-reflectance check: drop impossible index values
+        for k in ("ndvi", "ndmi"):
+            if o.get(k) is not None and not -1 <= o[k] <= 1:
+                o[k] = None
 
     by_season: dict[int, dict] = {}
     for o in obs:

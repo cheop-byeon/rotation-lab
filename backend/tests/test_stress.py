@@ -200,3 +200,35 @@ def test_usda_texture_classes_and_farm_years():
     assert years[0]["one_crop"] and years[0]["main"] == "Barley" and years[0]["arable_daa"] == 46   # pasture left out
     assert not years[1]["one_crop"]                                                                    # mixed: field unknown
     assert not p.in_norway(46.6, 20.66)
+
+
+def test_area_view_for_a_municipality():
+    from fastapi.testclient import TestClient
+    from app.main import app
+    with TestClient(app) as cl:
+        assert cl.get("/?field=1", follow_redirects=False).headers["location"] == "/field?field=1"  # old links still work
+        idx = cl.get("/api/areas").json()
+        assert len(idx["areas"]) > 300 and "Landbruksdirektoratet" in idx["source"]
+        d = cl.get("/api/areas/5035").json()
+        assert cl.get("/api/areas/0000").status_code == 404
+    assert d["name"] == "Stjørdal" and d["years"][0] == 2017 and d["years"][-1] == 2026
+    crops = {c["group"]: c for c in d["crops"]}
+    assert crops["Barley"]["consistent"] and crops["Barley"]["share_pct"][-1] < crops["Barley"]["share_pct"][0]
+    assert all(abs(sum(c["share_pct"][i] for c in d["crops"]) - 100) < 0.5 for i in range(len(d["years"])))
+    assert d["dots"] and len(d["dots"][0]) == len(d["dot_fields"]) and "Pasture" not in [c["group"] for c in d["crops"]]
+
+
+def test_parcel_outline_helpers_and_impossible_ndvi():
+    from app import publicdata as p
+    sq = [[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]
+    assert p._inside((0.5, 0.5), sq) and not p._inside((1.5, 0.5), sq)
+    long_ring = [[i / 1000, (i % 7) / 1000] for i in range(900)] + [[0, 0]]
+    s = p._simplify(long_ring)
+    assert len(s) <= 301 and s[0] == s[-1]
+    # a cached reading with NDVI above 1 (from negative reflectance) is dropped, not used as a peak
+    obs = [{"date": f"2022-0{m}-15", "sensor": "S30", "clear_pct": 1, "pixels": 9, "scene_cloud": 5, "ndvi": v, "ndmi": 0.3, "evi": 0.5}
+           for m, v in ((5, 0.3), (6, 0.8), (7, 1.73), (8, 0.4), (9, 0.35))]
+    rec = hls._assemble({"type": "Polygon", "coordinates": [sq]}, "k", 63.5, 10.8, "2022-04-01", "2022-10-31", obs, "live",
+                        {"images_found": 5, "images_read_now": 0, "images_from_cache": 5, "images_failed": 0}, 0)
+    assert all(o["ndvi"] is None or o["ndvi"] <= 1 for o in rec["observations"])
+    assert rec["seasons"][0]["peak_ndvi"] <= 1

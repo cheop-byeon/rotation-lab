@@ -2,6 +2,7 @@ import { api } from './api.js';
 import { createMap } from './map.js';
 import { renderCharts, tableFor, renderVegCharts, renderTrendChart, renderChangeChart, renderAroundChart } from './charts.js';
 import { createDrawer, centroid } from './draw.js';
+import { spotFromUrl, spotQuery, fieldFromSpot, areaOf } from './records.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
@@ -38,6 +39,14 @@ function fillForm(f) {
   drawer?.set(state.boundary);
 }
 
+// "All areas › <area> › <this land>", and the Simple link back to the same land.
+async function renderCrumbs(f) {
+  $('crumb-here').textContent = f.name;
+  const a = await areaOf(f);
+  $('crumb-area').hidden = !a;
+  if (a) { $('crumb-area-link').textContent = a.name; $('crumb-area-link').href = `/?area=${a.code}`; }
+}
+
 // ------------------------------------------------------------------ fields
 function renderSaved() {
   $('saved-list').innerHTML = state.fields.length ? state.fields.map(f => `
@@ -51,10 +60,10 @@ function renderSaved() {
   // Keep the two views on the same field: this page's address and the link back carry the field id.
   // (An unsaved location stays in this page's address so a reload keeps it; save the field to carry it to the field view.)
   const lat = $('f-lat').value, lon = $('f-lon').value;
-  const q = state.fieldId != null ? `?field=${state.fieldId}`
-    : lat && lon ? `?${new URLSearchParams({ lat, lon, name: $('f-name').value })}` : '';
+  const q = state.fieldId != null ? `?field=${state.fieldId}` : state.spot ? `?${spotQuery(state.spot)}`
+    : lat && lon ? `?${new URLSearchParams({ lat, lon, place: $('f-name').value })}` : '';
   history.replaceState(null, '', `${location.pathname}${q}${location.hash}`);
-  $('to-field').href = state.fieldId != null ? `/?field=${state.fieldId}` : '/';
+  $('to-field').href = state.fieldId != null ? `/field?field=${state.fieldId}` : state.spot ? `/field?${spotQuery(state.spot)}` : '/field';
 }
 
 // Arriving from a field-view "See the evidence" link (/data?field=3#crops): scroll to that section once the
@@ -295,6 +304,7 @@ let drawer;
 function onPick(lat, lon) {
   $('f-lat').value = lat; $('f-lon').value = lon;
   if (state.boundary) { state.boundary = null; drawer.clear(); }
+  state.spot = null;
   if (state.fieldId != null) { state.fieldId = null; $('f-name').value = 'New field'; renderSaved(); }
   $('hero-loc').innerHTML = `<b>New target</b> · <span class="mono">${lat}, ${lon}</span>`;
   status(`Target set at ${lat}, ${lon}. Press Analyze to pull NASA data.`);
@@ -593,14 +603,14 @@ function wireUI() {
   $('saved-list').addEventListener('click', (e) => {
     const b = e.target.closest('[data-id]'); if (!b) return;
     const f = state.fields.find(x => x.id === +b.dataset.id);
-    state.fieldId = f.id; fillForm(f); renderSaved(); analyze();
+    state.fieldId = f.id; state.spot = null; fillForm(f); renderSaved(); analyze(); renderCrumbs(f);
   });
   $('save-btn').addEventListener('click', async () => {
     const f = readForm();
     if (!Number.isFinite(f.lat) || !Number.isFinite(f.lon)) { status('Pick a location first.', 'error'); return; }
     try {
       const saved = state.fieldId == null ? await api.createField(f) : await api.updateField(state.fieldId, f);
-      state.fieldId = saved.id; await loadFields(); status(`Field “${saved.name}” saved.`);
+      state.fieldId = saved.id; state.spot = null; await loadFields(); status(`Field “${saved.name}” saved.`);
     } catch (e) { status(`Could not save: ${e.message}`, 'error'); }
   });
   $('delete-btn').addEventListener('click', async () => {
@@ -662,15 +672,15 @@ async function boot() {
   // Same choice of field as the field view: ?field=<id>, or a location passed from an unsaved field, else your
   // own first field, else a demo field.
   const want = state.fields.find((f) => f.id === Number(qs.get('field')));
-  const lat = Number(qs.get('lat')), lon = Number(qs.get('lon'));
-  if (!want && qs.has('lat') && Number.isFinite(lat) && Number.isFinite(lon)) {
-    state.fieldId = null;
-    fillForm({ name: qs.get('name') || 'Field from the field view', lat, lon, soil: 'Unknown', drainage: 'Unknown', irrigation: 'Unknown',
-      previous_crop: state.crops[0]?.name, boundary: null });
-    renderSaved(); analyze();
+  const spot = spotFromUrl(qs);
+  if (!want && spot) {
+    // The same land as the simple view: the same spot, filled from the same public records.
+    state.fieldId = null; state.spot = spot;
+    const f = await fieldFromSpot(spot, (place) => `Farm land in ${place}`);
+    fillForm(f); renderSaved(); analyze(); renderCrumbs(f);
   } else if (state.fields.length) {
     const f = want || state.fields.find((x) => !x.demo) || state.fields[0];
-    state.fieldId = f.id; fillForm(f); renderSaved(); analyze();
+    state.fieldId = f.id; fillForm(f); renderSaved(); analyze(); renderCrumbs(f);
   } else rankPlans();
 }
 

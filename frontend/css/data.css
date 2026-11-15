@@ -290,3 +290,8 @@ footer { border-top: 1px solid var(--line); padding: 26px clamp(16px, 3vw, 40px)
   .advisories { grid-template-columns: 1fr; }
   #map { min-height: 340px; }
 }
+
+/* where you are: All areas › area › this land */
+.crumbs { max-width: 1280px; margin: 14px auto 0; padding: 0 24px; font-size: .9rem; color: var(--ink-2); overflow-wrap: anywhere; }
+.crumbs a { color: var(--accent-ink); font-weight: 600; }
+.crumbs [aria-current] { color: var(--ink); font-weight: 600; }

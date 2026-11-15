@@ -171,5 +171,61 @@ async def farm_crops(lat: float, lon: float) -> dict:
     prop = {"kommunenummer": e["kommunenummer"], "matrikkel": e.get("matrikkelnummertekst")}
     if not farms:
         return {**base, "status": "no_farm", "property": prop, "delivery": delivery,
-                "message": "No farm reported this property as its base in 2017–2024. The land may be farmed from another property."}
+                "message": "No farm reported this property as its base in 2017–2026. The land may be farmed from another property."}
     return {**base, "status": "ok", "property": prop, "delivery": delivery, "farms": [{"years": _years(f)} for f in farms]}
+
+
+# ---------------------------------------------------------------- the property parcel under a point (Norway)
+GEOKODING = "https://ws.geonorge.no/eiendom/v1/geokoding"
+
+
+def _inside(pt: tuple[float, float], ring: list) -> bool:
+    x, y, hit = pt[0], pt[1], False
+    for (x1, y1), (x2, y2) in zip(ring, ring[1:]):
+        if (y1 > y) != (y2 > y) and x < x1 + (y - y1) * (x2 - x1) / (y2 - y1):
+            hit = not hit
+    return hit
+
+
+def _simplify(ring: list, max_points: int = 300) -> list:
+    """Keep every k-th vertex so the outline fits the app's limit; closed again at the end."""
+    pts = ring[:-1] if ring and ring[0] == ring[-1] else ring
+    step = max(1, -(-len(pts) // (max_points - 1)))
+    out = [[round(x, 6), round(y, 6)] for x, y in pts[::step]]
+    return out + [out[0]]
+
+
+async def parcel(lat: float, lon: float) -> dict:
+    """Outline of the property parcel (teig) under a point, from Kartverket, to use as a field outline.
+
+    A parcel is the land of one property, which can hold a farmyard, forest or several fields; it is a starting
+    outline that the user can redraw, not a field boundary."""
+    from . import hls
+    if not in_norway(lat, lon):
+        return {"status": "outside", "message": "Property outlines are available in Norway only."}
+    try:
+        found, _ = await _cached_json(property_key(lat, lon), EIENDOM,
+                                      {"nord": lat, "ost": lon, "koordsys": 4326, "radius": 1, "treffPerSide": 10})
+        hits = sorted(found.get("eiendom") or [], key=lambda e: e.get("meterFraPunkt", 0))
+        if not hits:
+            return {"status": "no_property", "message": "No property was found at this point."}
+        e = hits[0]
+        q = {"kommunenummer": e["kommunenummer"], "gardsnummer": e["gardsnummer"], "bruksnummer": e["bruksnummer"],
+             "festenummer": e.get("festenummer", 0), "omrade": "true", "utkoordsys": 4326, "treffPerSide": 100}
+        geo, _ = await _cached_json(f"teig:{e['kommunenummer']}-{e['gardsnummer']}-{e['bruksnummer']}-{q['festenummer']}", GEOKODING, q)
+    except Unavailable as exc:
+        return {"status": "unavailable", "message": f"Kartverket's property service could not be reached: {exc}"}
+    rings = []
+    for f in geo.get("features", []):
+        g = f.get("geometry") or {}
+        polys = g.get("coordinates", []) if g.get("type") == "MultiPolygon" else [g.get("coordinates", [])] if g.get("type") == "Polygon" else []
+        rings += [p[0] for p in polys if p]
+    if not rings:
+        return {"status": "no_outline", "message": "Kartverket has no outline for this property."}
+    ring = next((r for r in rings if _inside((lon, lat), r)), None) or max(rings, key=lambda r: hls.area_ha({"coordinates": [r]}))
+    boundary = {"type": "Polygon", "coordinates": [_simplify(ring)]}
+    if problem := hls.validate_boundary(boundary):
+        return {"status": "unusable", "message": f"The property outline can't be used as a field outline: {problem}"}
+    return {"status": "ok", "boundary": boundary, "area_ha": round(hls.area_ha(boundary), 2),
+            "source": "Kartverket property map (matrikkel), open data",
+            "note": "The outline of the property parcel at this point. It can include a farmyard, forest or more than one field; redraw it to match one field."}

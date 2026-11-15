@@ -69,14 +69,22 @@ If port 8000 is already in use, pick another port with `PORT=…`.
 
 ### Using the app
 
-Switch between the two views with **Field view / Data view** at the top right.
+The app has two levels: **an area** (a municipality) and **a piece of farm land** in it. A trail at the top (*All areas › Stjørdal › Farm land in Stjørdal*) shows where you are and leads back up.
+For a piece of land, **Simple / Detailed** at the top right switches between the plain-language view (`/field`) and the full charts and tables (`/data`) of the *same* land: both read the same address (`?field=<id>` for a saved field, or `?lat=&lon=&place=&area=` for a spot opened from the area view) and fill it from the same public records (`frontend/js/records.js`).
+
+**Area view (`/`, the start page)** is for anyone who does not know the land, for example a supplier of fertiliser or machinery. Type a municipality (or pick one of the largest farming areas) and one page answers three questions:
+1. **What farms grow:** each crop group's share of arable land in 2026, and whether it has changed steadily since 2017. A change is named only when the whole record trends the same way (Theil–Sen, Mann–Kendall p < 0.05) and moves at least 3 percentage points. In Stjørdal, for example, barley fell from 44% to 36% and wheat rose from 3% to 6%; grass, oats and potatoes show no steady change.
+2. **How the climate is changing:** the NASA POWER *then and now* (1991–2000 against the last ten seasons) for the middle of the farming area.
+3. **Where the farms are:** farm centres from the farm register as dots, sized by arable land and coloured by main crop, with no names. A dot opens that spot's land: the property parcel under it (Kartverket) as the outline, the SoilGrids soil estimate and the farm's last reported crop.
+
+Everything else (the yearly table, method and sources) is behind **Show the evidence**. The data are totals of what farms reported to Landbruksdirektoratet, built into `data/areas/` (353 municipalities, 2.3 MB) by `scripts/build_areas.py`, counted under today's municipalities with SSB's KLASS change list. Old links such as `/?field=1` are sent on to `/field?field=1`.
 
 The demo field **Stjørdal 01** (Trøndelag, Norway) loads automatically. It is a **real 2.5 ha arable field** west of Stjørdal, filled in from public records only:
 - **Outline:** the property parcel from Kartverket's open property service (`ws.geonorge.no/eiendom/v1`), which follows the field's edges.
 - **Soil:** *Loamy*, the ISRIC SoilGrids estimate for the spot (loam: 51% sand, 38% silt, 10% clay, 0–30 cm; a 250 m model, not a measurement).
-- **Crops 2017–2024:** what the farm based on this property reported to Landbruksdirektoratet (production-subsidy applications,
+- **Crops 2017–2026:** what the farm based on this property reported to Landbruksdirektoratet (production-subsidy applications,
   [open data](https://github.com/LandbruksdirektoratetGIT/opendata), NLOD). It had one crop on all 45–46 daa of its arable land every year
-  (plus 5 daa of pasture), so that crop was on this field too: winter wheat 2017–2019, barley 2020, grass ley 2021–2024.
+  (plus 5 daa of pasture), so that crop was on this field too: winter wheat 2017–2019, barley 2020, grass ley 2021–2026.
 - **Drainage and irrigation:** *Unknown*. NIBIO's soil map (*Jordsmonn*) has drainage classes and is open data, but its services did not answer from our network or browser; irrigation is the grower's practice and has no public source.
 - The farm is not named in the app. Both views label the field as a demo; editing and saving it, or saving your own field, removes the label.
 
@@ -87,7 +95,7 @@ The demo field **Stjørdal 01** (Trøndelag, Norway) loads automatically. It is 
 Each field-view card ends with **See the evidence in the data view**, which opens the data view on the same field at the matching section (e.g. `/data?field=1#crop-then-now`). Field ids depend on the database: on a fresh install and on Vercel, the Stjørdal demo is 1.
 An unsaved field is passed as its location; save it to keep it, with its outline, in both views.
 
-**Field view (`/`)**
+**Simple view (`/field`)**
 1. Press **Choose my field**, tap the field on the map (or *Use my location*), and tap your soil, drainage, irrigation and this year's crop.
 2. Press **Show my field**. A new location takes ~3–5 s the first time, then it is cached for 12 hours. **Save this field** keeps it for next time.
 3. Read top to bottom: *Right now → Things to consider → Your season → Your field from space → What's grown around you → What has changed here → Crops in your climate (with Crops then and now) → Your rotation → Where does this come from?*
@@ -101,7 +109,7 @@ An unsaved field is passed as its location; save it to keep it, with its outline
 toolbar (the satellite overlay fades while you trace). The outline is saved with the field (0.3–2000 ha). The first satellite read
 takes ~20–120 s for every season since 2020 (it depends on how many images cover the field), and the area around it ~80 s; then both are cached.
 
-**Data view (`/data`)**
+**Detailed view (`/data`)**
 1. Click the map (or type `lat, lon` into *Go to*, or *Use my location*), set the field inputs and press **Analyze field**. Switch satellite layers and dates in the map toolbar.
 2. Scroll through conditions, briefing, trends, then and now, the satellite crop record, what's grown around the field, crop suitability, the rotation planner, the season log and data provenance.
    *Download daily CSV* in the provenance section exports the raw data used.
@@ -252,10 +260,10 @@ The GIBS layers are for visual context only; nothing is calculated from them. Th
   An unclear or late curve that never drops below green (NDVI 0.5) from late July to early September and is still green in autumn is read as *grass / ley* (no harvest; see the area-around section).
   If that field was also **bare in late April–May** (NDVI below 0.4), it was sown that spring, so it is read as a **new ley**: often grass sown under a spring cereal, which is harvested while the grass keeps growing.
   **Checked against the crops the farm reported (demo field):** 2021–2024 grass ley, read as grass in all 4 seasons. 2020 barley was first read as grass; the curve was bare in May and green from July into October, the pattern of barley with grass sown under it, which matches grass from 2021. That case led to the *new ley* rule, and a new ley counts as fitting both a reported cereal and a reported ley.
-- **Reported crops (any field in Norway):** the app finds the property under the field (Kartverket) and the farm based there, and shows that farm's reported crops 2017–2024 next to the satellite hints (`/api/farm-crops`).
+- **Reported crops (any field in Norway):** the app finds the property under the field (Kartverket) and the farm based there, and shows that farm's reported crops 2017–2026 next to the satellite hints (`/api/farm-crops`).
   A year counts as this field's crop only when the farm had one crop on at least 95% of its arable land (pasture left out); other years show the farm's mix and are not compared.
   If several farms are based on the property, or none, it says so instead. Caveats shown with it: the farm may rent other land, and the field may be rented to another farm.
-  The index (`data/farm_crops.json.gz`, 1.7 MB, 48,266 farms on 44,654 properties) is built by `scripts/build_farm_crops.py`; farm names and organisation numbers are left out, and the views do not show the property number.
+  The index (`data/farm_crops.json.gz`, 2.1 MB, 51,122 farms on 45,889 properties) is built by `scripts/build_farm_crops.py`; farm names and organisation numbers are left out, and the views do not show the property number.
 - **Productivity zones:** stronger and weaker parts of the field, from **EVI** (less saturated than NDVI in dense crops) for every 30 m pixel.
   For each season, each pixel's 90th-percentile EVI (at least 3 clear images) is divided by the median of the field's interior pixels that season, which removes the effect of different crops in different years.
   These values are averaged over at least 2 seasons. Weaker means below 0.95 of the field median, stronger above 1.05.
@@ -297,7 +305,7 @@ The GIBS layers are for visual context only; nothing is calculated from them. Th
 - **ESA WorldCover 2021** (CC BY 4.0) via Microsoft Planetary Computer: the farmland mask for *what's grown around you*.
 - **Microsoft Planetary Computer**: open hosting of NASA HLS and ESA WorldCover (STAC API, anonymous token).
 - **Statistics Norway table 06462**: used once to check the area-around results; not used by the app.
-- **Landbruksdirektoratet, production-subsidy applications 2017–2024** ([open data on GitHub](https://github.com/LandbruksdirektoratetGIT/opendata), NLOD): crop areas each farm reported, per year. Gives the demo field's real crop history, the reported crops for any Norwegian field, and an offline check of the area-around results. Per farm, not per field; farm names are not shown.
+- **Landbruksdirektoratet, production-subsidy applications and farm register 2017–2026** ([open data on GitHub](https://github.com/LandbruksdirektoratetGIT/opendata), NLOD): crop areas each farm reported, per year. Gives the demo field's real crop history, the reported crops for any Norwegian field, and an offline check of the area-around results. Per farm, not per field; farm names are not shown.
 - **Kartverket property service** (`ws.geonorge.no/eiendom/v1`, open): the property under a field (for its reported crops) and the demo field's outline.
 - **ISRIC SoilGrids 2.0** (CC BY 4.0, `rest.isric.org`): sand, silt and clay for 0–30 cm at 250 m, turned into a USDA texture class and the app's soil choice (`/api/soil`). The field view pre-fills the soil answer with it, says it is an estimate, and the grower can change it. SoilGrids' organic carbon is very uncertain in Norway (16–506 g/kg at the demo field), so a soil is called peat only if it is still ≥ 20% organic carbon at 15–30 cm. No drainage.
 

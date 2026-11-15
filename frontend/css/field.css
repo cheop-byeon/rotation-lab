@@ -47,6 +47,8 @@ main { max-width: 760px; margin: 0 auto; padding: 8px 16px 48px; }
 /* field */
 .field-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
 .field-name { margin: 0; font-size: 1.05rem; color: var(--ink-2); }
+.why { display: inline-block; margin-top: 12px; font-size: .9rem; font-weight: 600; color: var(--green, #2E7D32); }
+.why::after { content: ' →'; }
 .crop-check { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 14px; }
 .crop-check h3 { margin: 0 0 8px; }
 .cc-pick { display: inline-flex; gap: 8px; align-items: center; font-weight: 600; }

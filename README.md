@@ -82,6 +82,10 @@ A second demo field, **Orosháza 01** (Békés county, Hungary), is rainfed arab
 with illustrative farm details. It shows the season check catching droughts from NASA data alone (2022 and 2026, below).
 The field view's demo note switches between the demo fields, and `/?field=<id>` opens a field directly (handy for recording a demo).
 
+**The two views stay on the same field.** Both open the same default (your own first field, else a demo) and read `?field=<id>`; the links between them carry it.
+Each field-view card ends with **See the evidence in the data view**, which opens the data view on the same field at the matching section (e.g. `/data?field=3#crop-then-now`).
+An unsaved field is passed as its location; save it to keep it, with its outline, in both views.
+
 **Field view (`/`)**
 1. Press **Choose my field**, tap the field on the map (or *Use my location*), and tap your soil, drainage, irrigation and this year's crop.
 2. Press **Show my field**. A new location takes ~3–5 s the first time, then it is cached for 12 hours. **Save this field** keeps it for next time.

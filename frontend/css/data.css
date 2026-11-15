@@ -82,6 +82,7 @@ main { max-width: 1360px; margin: 0 auto; padding: 0 clamp(16px, 3vw, 40px) 64px
 .season-key span { display: inline-flex; align-items: center; gap: 6px; }
 .season-key i { width: 14px; height: 4px; border-radius: 2px; display: inline-block; }
 .zones-block { margin: 18px 0; }
+section[id], .panel[id] { scroll-margin-top: 72px; }  /* clear the sticky top bar when opened from a link */
 .row-strong td { font-weight: 600; }
 .mini-select { font: 600 .74rem var(--mono); color: var(--ink-2); display: inline-flex; gap: 8px; align-items: center; }
 .mini-select select { background: var(--panel-2); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; font: inherit; }

@@ -28,7 +28,7 @@
   <div class="top-right">
     <span id="api-status" class="link-status"><i class="dot" id="api-dot"></i>API</span>
     <div class="view-switch" role="group" aria-label="Choose view">
-      <a href="/">Field view</a><a href="/data" aria-current="page">Data view</a>
+      <a href="/" id="to-field">Field view</a><a href="/data" aria-current="page">Data view</a>
     </div>
   </div>
 </header>
@@ -175,7 +175,7 @@
       <div class="data-table-wrap" style="max-height:none" id="change-table"><div class="empty-state">Awaiting analysis.</div></div>
       <p class="chart-note" id="change-method"></p>
     </div>
-    <div class="panel" style="margin-top:18px">
+    <div class="panel" id="crop-then-now" style="margin-top:18px">
       <div class="chart-title"><h3>One crop, then and now</h3><label class="mini-select">Crop <select id="cc-crop"></select></label>
         <label class="mini-select">Measure <select id="cc-metric"></select></label></div>
       <div id="cc-summary"></div>

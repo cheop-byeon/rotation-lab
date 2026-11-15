@@ -48,6 +48,22 @@ function renderSaved() {
   $('demo-badge').hidden = !current?.demo;
   $('delete-btn').hidden = state.fieldId == null;
   $('save-btn').textContent = state.fieldId == null ? 'Save field' : 'Update field';
+  // Keep the two views on the same field: this page's address and the link back carry the field id.
+  // (An unsaved location stays in this page's address so a reload keeps it; save the field to carry it to the field view.)
+  const lat = $('f-lat').value, lon = $('f-lon').value;
+  const q = state.fieldId != null ? `?field=${state.fieldId}`
+    : lat && lon ? `?${new URLSearchParams({ lat, lon, name: $('f-name').value })}` : '';
+  history.replaceState(null, '', `${location.pathname}${q}${location.hash}`);
+  $('to-field').href = state.fieldId != null ? `/?field=${state.fieldId}` : '/';
+}
+
+// Arriving from a field-view "See the evidence" link (/data?field=3#crops): scroll to that section once the
+// sections above it have loaded, unless the reader has already scrolled.
+let readerScrolled = false;
+['wheel', 'touchmove', 'keydown', 'pointerdown'].forEach((ev) => addEventListener(ev, () => { readerScrolled = true; }, { once: true, passive: true }));
+function settleHash() {
+  const el = location.hash && document.getElementById(location.hash.slice(1));
+  if (el && !readerScrolled) el.scrollIntoView({ block: 'start', behavior: 'instant' });
 }
 async function loadFields() { state.fields = await api.fields(); renderSaved(); }
 
@@ -67,6 +83,7 @@ async function analyze() {
     renderHero(d, f); renderTelemetry(d); renderAdvisories(d); renderCharts(d); renderTable(); renderSuitability(d); renderSeasons(d); renderProvenance(d, f);
     renderSatellite(f, d); renderChange(f); renderCropCheck(f);
     await rankPlans();
+    settleHash();
     const src = { live: 'live from NASA POWER', cache: 'from local cache', 'stale-cache': 'from an older cache (NASA POWER unreachable)', snapshot: 'from the offline snapshot' }[d.provenance.delivery];
     status(`Analysis complete · ${d.provenance.days.toLocaleString()} days of data ${src} · ${((performance.now() - t0) / 1000).toFixed(1)} s · latest day ${d.now.date}`, d.provenance.delivery === 'live' || d.provenance.delivery === 'cache' ? '' : 'error');
   } catch (e) {
@@ -336,6 +353,7 @@ async function renderCropCheck(f) {
     }
   };
   sel.onchange = show; await show();
+  settleHash();
 }
 
 async function renderChange(f) {
@@ -360,6 +378,7 @@ async function renderChange(f) {
   } catch (e) {
     $('change-table').innerHTML = `<div class="empty-state">Could not read the long record: ${esc(e.message)}</div>`;
   }
+  settleHash();
 }
 
 function renderTrend(tr, archive) {
@@ -501,6 +520,7 @@ async function renderSatellite(f, d) {
   } catch (e) {
     if (state.vegFor === key) panel.innerHTML = `<div class="mission-status error">Satellite record unavailable: ${esc(e.message)}</div>`;
   }
+  settleHash();
 }
 
 function wireLayers(cfg) {
@@ -569,6 +589,7 @@ function wireUI() {
 }
 
 async function boot() {
+  const qs = new URLSearchParams(location.search);  // read before anything rewrites the address
   wireUI(); wirePlanner();
   try {
     await api.health(); $('api-dot').className = 'dot ok';
@@ -590,8 +611,19 @@ async function boot() {
   $('draw-clear').onclick = () => { drawer.clear(); state.boundary = null; };
   wireLayers(layers);
   await loadFields();
-  if (state.fields.length) { const f = state.fields[0]; state.fieldId = f.id; fillForm(f); renderSaved(); analyze(); }
-  else rankPlans();
+  // Same choice of field as the field view: ?field=<id>, or a location passed from an unsaved field, else your
+  // own first field, else a demo field.
+  const want = state.fields.find((f) => f.id === Number(qs.get('field')));
+  const lat = Number(qs.get('lat')), lon = Number(qs.get('lon'));
+  if (!want && qs.has('lat') && Number.isFinite(lat) && Number.isFinite(lon)) {
+    state.fieldId = null;
+    fillForm({ name: qs.get('name') || 'Field from the field view', lat, lon, soil: 'Unknown', drainage: 'Unknown', irrigation: 'Unknown',
+      previous_crop: state.crops[0]?.name, boundary: null });
+    renderSaved(); analyze();
+  } else if (state.fields.length) {
+    const f = want || state.fields.find((x) => !x.demo) || state.fields[0];
+    state.fieldId = f.id; fillForm(f); renderSaved(); analyze();
+  } else rankPlans();
 }
 
 boot();

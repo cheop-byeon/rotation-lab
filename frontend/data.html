@@ -28,12 +28,13 @@
   <div class="top-right">
     <span id="api-status" class="link-status"><i class="dot" id="api-dot"></i>API</span>
     <div class="view-switch" role="group" aria-label="Choose view">
-      <a href="/">Area view</a><a href="/field" id="to-field">Field view</a><a href="/data" aria-current="page">Data view</a>
+      <a href="/field" id="to-field">Simple</a><a href="/data" aria-current="page">Detailed</a>
     </div>
   </div>
 </header>
 
 <main id="top">
+  <nav class="crumbs" aria-label="Where you are"><a href="/">All areas</a><span id="crumb-area" hidden> › <a id="crumb-area-link" href="/"></a></span> › <span id="crumb-here" aria-current="page"></span></nav>
   <section class="hero">
     <p class="tag">NASA EARTH DATA · FIELD ANALYTICS</p>
     <h1>Climate evidence for <em>crop rotation</em> decisions</h1>

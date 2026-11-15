@@ -21,14 +21,14 @@
     <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#2E7D32"/><path d="M9 22c7 0 14-5 14-14-8 0-14 5-14 14z" fill="#FFFDF8"/></svg>
     <span>Rotation Lab</span>
   </a>
-  <nav class="view-switch" aria-label="Choose view">
-    <a href="/" data-t="app.viewArea">Area view</a>
-    <a href="/field" aria-current="page" data-t="app.viewField">Field view</a>
-    <a href="/data" data-anchor="" data-t="app.viewData">Data view</a>
+  <nav class="view-switch" aria-label="How much detail">
+    <a href="/field" aria-current="page" data-t="nav.simple">Simple</a>
+    <a href="/data" data-anchor="" data-t="nav.detailed">Detailed</a>
   </nav>
 </header>
 
 <main>
+  <nav class="crumbs" aria-label="Where you are"><a href="/" data-t="nav.allAreas">All areas</a><span id="crumb-area" hidden> › <a id="crumb-area-link" href="/"></a></span> › <span id="crumb-here" aria-current="page"></span></nav>
   <p class="tagline" data-t="app.tagline">Ten years of NASA weather records for your field, at a glance.</p>
 
   <!-- FIELD -->

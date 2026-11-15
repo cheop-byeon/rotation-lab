@@ -115,7 +115,7 @@ function renderMap(d) {
   const dots = d.dots.map(([lat, lon, daa, crop, year]) => L.circleMarker([lat, lon], {
     radius: Math.max(3, Math.min(12, Math.sqrt(daa) / 3)), color: '#fff', weight: 1, fillColor: COLOUR[crop] || '#8a8f98', fillOpacity: 0.9,
   }).bindPopup(`${esc(t('area.popup', { daa: num(daa), crop: groupName(crop), year }))}<br>
-    <a href="/field?${new URLSearchParams({ lat: lat.toFixed(4), lon: lon.toFixed(4), name: d.name })}">${esc(t('area.openField'))}</a>`));
+    <a href="/field?${new URLSearchParams({ lat: lat.toFixed(4), lon: lon.toFixed(4), place: d.name, area: d.code })}">${esc(t('area.openField'))}</a>`));
   state.layer = L.featureGroup(dots).addTo(state.map);
   if (dots.length) state.map.fitBounds(state.layer.getBounds(), { padding: [16, 16], maxZoom: 13 });
   const used = [...new Set(d.dots.map((x) => x[3]))];

@@ -10,7 +10,7 @@ export default {
   app: {
     tagline: 'Ten years of NASA weather records for your field, at a glance.',
     viewArea: 'Area view', viewField: 'Field view', viewData: 'Data view',
-    why: 'See the evidence in the data view',
+    why: 'See the details →',
     loading: 'Getting 10 years of NASA weather for your field…',
     failed: 'Could not load the data: {error}',
     print: 'Print or save this page',
@@ -21,7 +21,7 @@ export default {
     soilEstimate: 'Estimate for this spot: {soil} ({sand}% sand, {clay}% clay; ISRIC SoilGrids, a 250 m model, not measured). Change it if you know better.',
     otherDemo: 'Other demo field:',
     nearName: 'Farm land in {place}',
-    fromRecords: 'Opened from public records: the outline is the property parcel at this spot (Kartverket; it may include a farmyard, forest or more than one field), soil is the SoilGrids estimate, and the last crop is what this farm reported. Change any of it with “Choose my field”.',
+    fromRecords: 'Opened from public records: the outline is the property parcel at this spot (Kartverket; it may include a farmyard, forest or more than one field), soil is the SoilGrids estimate, and the last crop is what this farm reported. Change any of it with “Change field”.',
     choose: 'Choose my field', change: 'Change field', close: 'Close',
     mapHint: 'Tap your field on the map, or use your location.',
     useLocation: 'Use my location', locating: 'Finding your location…', locationFailed: 'Could not find your location.',
@@ -124,6 +124,7 @@ export default {
     blightNote: 'Blight-weather days are a daily stand-in for the official hourly rules. For spraying decisions, use the national warning service (VIPS in Norway).',
     failed: 'Could not check this crop: {error}',
   },
+  nav: { allAreas: 'All areas', simple: 'Simple', detailed: 'Detailed' },
   area: {
     tagline: 'Farming in any Norwegian municipality, from public records.',
     findTitle: 'Choose a place',

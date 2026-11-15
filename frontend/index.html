@@ -23,7 +23,7 @@
   </a>
   <nav class="view-switch" aria-label="Choose view">
     <a href="/" aria-current="page" data-t="app.viewField">Field view</a>
-    <a href="/data" data-t="app.viewData">Data view</a>
+    <a href="/data" data-anchor="" data-t="app.viewData">Data view</a>
   </nav>
 </header>
 
@@ -79,12 +79,14 @@
       <p class="headline" id="now-headline"></p>
       <div class="gauges" id="gauges"></div>
       <p class="small muted" id="now-note"></p>
+      <a class="why" data-anchor="telemetry" href="/data#telemetry" data-t="app.why">See the evidence in the data view</a>
     </section>
 
     <!-- TO DO -->
     <section class="card" aria-labelledby="todo-h">
       <h2 id="todo-h" data-t="todo.title">Things to consider</h2>
       <div class="todo" id="todo"></div>
+      <a class="why" data-anchor="briefing" href="/data#briefing" data-t="app.why">See the evidence in the data view</a>
     </section>
 
     <!-- SEASON -->
@@ -92,28 +94,33 @@
       <h2 id="season-h" data-t="season.title">Your season</h2>
       <div class="calendar" id="calendar"></div>
       <ul class="season-facts" id="season-facts"></ul>
+      <a class="why" data-anchor="seasons" href="/data#seasons" data-t="app.why">See the evidence in the data view</a>
     </section>
 
     <!-- FIELD FROM SPACE -->
     <section class="card" aria-labelledby="space-h">
       <h2 id="space-h" data-t="space.title">Your field from space</h2>
       <div id="space"></div>
+      <a class="why" data-anchor="satellite" href="/data#satellite" data-t="app.why">See the evidence in the data view</a>
     </section>
 
     <!-- CROPS -->
     <section class="card" aria-labelledby="changed-h">
       <h2 id="changed-h" data-t="changed.title">What has changed here</h2>
       <div id="changed"><p class="loading" data-t="changed.loading">Reading NASA weather records since 1981…</p></div>
+      <a class="why" data-anchor="change" href="/data#change" data-t="app.why">See the evidence in the data view</a>
     </section>
 
     <section class="card" aria-labelledby="crops-h">
       <h2 id="crops-h" data-t="crops.title">Crops in your climate</h2>
       <p class="muted" data-t="crops.intro">How each crop would have done in each of the last 10 seasons here.</p>
       <div id="crop-groups"></div>
+      <a class="why" data-anchor="crops" href="/data#crops" data-t="app.why">See the evidence in the data view</a>
       <div class="crop-check">
         <h3 data-t="cc.title">Is it still a good choice here?</h3>
         <label class="cc-pick"><span data-t="cc.crop">Crop</span> <select id="cc-crop"></select></label>
         <div id="cc-out"></div>
+        <a class="why" data-anchor="crop-then-now" href="/data#crop-then-now" data-t="app.why">See the evidence in the data view</a>
       </div>
     </section>
 
@@ -125,6 +132,7 @@
       <div id="my-plan"></div>
       <fieldset class="q"><legend data-t="plan.priorities">What matters most to you?</legend><div class="chips" id="q-prio"></div></fieldset>
       <details class="others"><summary data-t="plan.others">Other sequences that score well here</summary><div id="other-plans"></div></details>
+      <a class="why" data-anchor="planner" href="/data#planner" data-t="app.why">See the evidence in the data view</a>
     </section>
 
     <!-- SOURCE -->
@@ -132,7 +140,7 @@
       <h2 id="src-h" data-t="source.title">Where does this come from?</h2>
       <p id="source-text"></p>
       <div class="actions">
-        <a class="btn secondary" href="/data" data-t="source.data">See all the data and charts</a>
+        <a class="btn secondary" href="/data" data-anchor="" data-t="source.data">See all the data and charts</a>
         <button class="btn secondary" id="print-btn" type="button" data-t="app.print">Print or save this page</button>
       </div>
     </section>

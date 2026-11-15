@@ -10,6 +10,7 @@ export default {
   app: {
     tagline: 'Ten years of NASA weather records for your field, at a glance.',
     viewField: 'Field view', viewData: 'Data view',
+    why: 'See the evidence in the data view',
     loading: 'Getting 10 years of NASA weather for your field…',
     failed: 'Could not load the data: {error}',
     print: 'Print or save this page',

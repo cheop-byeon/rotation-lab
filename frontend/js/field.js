@@ -97,6 +97,10 @@ function renderField() {
   $('demo-note').querySelectorAll('[data-demo]').forEach((b) => { b.onclick = () => switchField(+b.dataset.demo); });
   $('choose-btn').textContent = t(f && !f.demo ? 'field.change' : 'field.choose');
   if (f) showMini(f);
+  // Keep the two views on the same field: links to the data view carry it, and so does this page's address.
+  const q = !f ? '' : f.id ? `?field=${f.id}` : `?${new URLSearchParams({ lat: f.lat, lon: f.lon, name: f.name || '' })}`;
+  document.querySelectorAll('a[data-anchor]').forEach((a) => { a.href = `/data${q}${a.dataset.anchor ? '#' + a.dataset.anchor : ''}`; });
+  if (f?.id) history.replaceState(null, '', `?field=${f.id}`);
 }
 
 function switchField(id) {

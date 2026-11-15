@@ -3,13 +3,12 @@
 Climate-aware crop and rotation planning for any field on Earth, built for the NASA Space Apps 2026 challenge
 [Field Shift: Adapting Farms with NASA Data](https://www.spaceappschallenge.org/2026/challenges/field-shift-adapting-farms-with-nasa-data/).
 
-Pick a field on the map. Rotation Lab pulls **10 years of daily NASA POWER data** for that location, overlays **live NASA GIBS satellite
-imagery**, and presents the result in **two views on the same data**:
+Pick or outline a field on the map. Rotation Lab pulls the **NASA POWER daily record since 1981** for that location (the last 10 years drive the "climate now" analysis), reads **every NASA HLS satellite image of the field since 2020**, overlays **NASA GIBS map layers**, and presents the result in **two views on the same field**:
 
 | View | URL | What it shows |
 | --- | --- | --- |
-| **Field view** (default) | `/` | One field at a glance, in plain words: conditions right now, things to consider, a season calendar, how each crop has done in this climate, and a check of *your own* rotation plan. Bright and high-contrast for a phone outdoors, printable, with the numbers one tap away. |
-| **Data view** | `/data` | The full analysis: map-led layout with satellite layers and data overlays, telemetry, rule-based advisories with evidence, time series, crop-season simulation, weighted rotation scoring, season log, provenance. |
+| **Field view** (default) | `/` | One field at a glance, in plain words: conditions right now, things to consider, a season calendar, the field from space (with its usual range and productivity zones), what's grown around it, what has changed since the 1990s, crops in this climate and crops then and now, and a check of *your own* rotation plan. Each card links to its evidence in the data view. Bright and high-contrast for a phone outdoors, printable, with the numbers one tap away. |
+| **Data view** | `/data` | The full analysis: map-led layout with satellite layers and data overlays, telemetry, rule-based advisories with evidence, time series, then and now (since 1981), the satellite crop record, what's grown around the field, crop-season simulation, weighted rotation scoring, season log, provenance. |
 
 Both views are for anyone: they differ in depth, not in who they are for. Growers are the experts on their own fields, so the
 field view reports what the records show and offers options. It does not give orders, and the rotation it evaluates is the
@@ -42,7 +41,7 @@ The platform supports comparing options with a grower or adviser. Its scores ref
 ### Requirements
 
 - Python **3.10 or newer** (`python3 --version`)
-- Internet access to `power.larc.nasa.gov` (climate data) and `gibs.earthdata.nasa.gov` (map imagery). Without it, only the bundled offline demo field works (see below).
+- Internet access to `power.larc.nasa.gov` (weather), `planetarycomputer.microsoft.com` (NASA HLS and ESA WorldCover), `gibs.earthdata.nasa.gov` (NASA map layers) and `server.arcgisonline.com` (Esri basemap). Without it, only the bundled offline demo fields work (see below).
 - A modern browser. No Node.js or build step is needed.
 
 ### Start
@@ -56,7 +55,7 @@ cd rotation-lab
 Then open **http://127.0.0.1:8000** in your browser.
 
 On the first run, `run.sh` creates a virtual environment in `.venv/` and installs `backend/requirements.txt`
-(FastAPI, Uvicorn, httpx, Pydantic, pytest). Later runs start immediately. Stop the server with `Ctrl+C`.
+(FastAPI, Uvicorn, httpx, Pydantic, NumPy, rasterio, pytest). Later runs start immediately. Stop the server with `Ctrl+C`.
 
 | What you want | Command |
 | --- | --- |
@@ -83,14 +82,14 @@ with illustrative farm details. It shows the season check catching droughts from
 The field view's demo note switches between the demo fields, and `/?field=<id>` opens a field directly (handy for recording a demo).
 
 **The two views stay on the same field.** Both open the same default (your own first field, else a demo) and read `?field=<id>`; the links between them carry it.
-Each field-view card ends with **See the evidence in the data view**, which opens the data view on the same field at the matching section (e.g. `/data?field=3#crop-then-now`).
+Each field-view card ends with **See the evidence in the data view**, which opens the data view on the same field at the matching section (e.g. `/data?field=2#crop-then-now`). Field ids depend on the database: on a fresh install and on Vercel, Stjørdal is 1 and Orosháza 2.
 An unsaved field is passed as its location; save it to keep it, with its outline, in both views.
 
 **Field view (`/`)**
 1. Press **Choose my field**, tap the field on the map (or *Use my location*), and tap your soil, drainage, irrigation and this year's crop.
 2. Press **Show my field**. A new location takes ~3–5 s the first time, then it is cached for 12 hours. **Save this field** keeps it for next time.
-3. Read top to bottom: *Right now → Things to consider → Your season → Crops in your climate → Your rotation → Where does this come from?*
-   Tap **The numbers** on any card to see the evidence.
+3. Read top to bottom: *Right now → Things to consider → Your season → Your field from space → What's grown around you → What has changed here → Crops in your climate (with Crops then and now) → Your rotation → Where does this come from?*
+   **See the evidence in the data view** at the end of each card opens the numbers behind it.
 4. In **Your rotation**, set your own crop for each of the next three years on the field tiles; each change is checked against ten years of weather at the field.
    Until you change it, the tiles start from the sequence that scores best here, and the page says so. *Other sequences that score well here* lists ideas
    built from the crops that do well in this climate (best crop of each crop family), each with **Use this**. Pick what matters most to you to re-weight the scores.
@@ -98,11 +97,11 @@ An unsaved field is passed as its location; save it to keep it, with its outline
 **Outlining a field (both views).** Optional, but it unlocks the field's own satellite record. In the field view, open
 *Choose my field* → **Outline my field** and tap each corner, then **Done**. In the data view, use **Draw field boundary** in the map
 toolbar (the satellite overlay fades while you trace). The outline is saved with the field (0.3–2000 ha). The first satellite read
-takes ~15–30 s for every season since 2020, then it is cached.
+takes ~20–120 s for every season since 2020 (it depends on how many images cover the field), and the area around it ~80 s; then both are cached.
 
 **Data view (`/data`)**
 1. Click the map (or type `lat, lon` into *Go to*, or *Use my location*), set the field inputs and press **Analyze field**. Switch satellite layers and dates in the map toolbar.
-2. Scroll through conditions, briefing, trends, crop suitability, the rotation planner, the season log and data provenance.
+2. Scroll through conditions, briefing, trends, then and now, the satellite crop record, what's grown around the field, crop suitability, the rotation planner, the season log and data provenance.
    *Download daily CSV* in the provenance section exports the raw data used.
 
 ### Translating the field view
@@ -126,7 +125,7 @@ Vercel project settings: **Root Directory empty** (the repo root) and **Framewor
 Both demo fields work **without internet**:
 
 - **Weather:** dated copies of the NASA POWER responses for the demo fields, 1981 to today (`data/snapshots/dailyfull_*.json`, `clim_*.json`).
-- **Satellite record:** every NASA HLS image reading for the demo outlines, with per-pixel values for the zones (`data/snapshots/hls_*.json`).
+- **Satellite record:** every NASA HLS image reading for the demo outlines, with per-pixel values and the computed zones (`data/snapshots/hls_*.json`), and the area around each field (`data/snapshots/nb_*.json`).
 - **Libraries:** Leaflet and Chart.js are served from `frontend/vendor/` (copied from cdnjs and checked against its SRI hashes), not a CDN.
 
 When NASA POWER or the HLS catalogue can't be reached, the API serves the local cache, then these snapshots. It says so in the UI
@@ -139,7 +138,7 @@ overlays, and web fonts (system fonts are used instead). Open the demo once whil
 To refresh the snapshots before a presentation (or add weather for other points):
 
 ```sh
-.venv/bin/python scripts/snapshot.py                          # demo fields: weather + satellite record
+.venv/bin/python scripts/snapshot.py                          # demo fields: weather, satellite record, zones, area around
 .venv/bin/python scripts/snapshot.py 63.46 10.92 -33.89 -60.57  # extra weather points (lat lon pairs)
 ```
 
@@ -148,21 +147,21 @@ To refresh the snapshots before a presentation (or add weather for other points)
 | Path | Contents | In git? |
 | --- | --- | --- |
 | `data/rotation_lab.db` | SQLite: NASA POWER response cache + saved fields (created on first start) | no |
-| `data/snapshots/*.json` | Offline copies of POWER responses | yes |
+| `data/snapshots/*.json` | Offline copies of NASA POWER, HLS, zones and area-around results | yes |
 | `.venv/` | Python virtual environment | no |
 
 Set `ROTATION_LAB_DB=/path/to/file.db` to use a different database file.
 
 ## Data used
 
-All climate numbers come from NASA POWER, and all map overlays from NASA GIBS. Every value in the UI can be traced back via
+Weather and climate numbers come from NASA POWER, the field's satellite record from NASA HLS, and the map layers from NASA GIBS (backdrops only). Every value in the UI can be traced back via
 the *Data provenance* section, which shows the exact POWER request URL, retrieval time and whether the data came live,
 from cache, or from the offline snapshot.
 
 ### 1. NASA POWER — daily point data (the core dataset)
 
 - **API:** [POWER Daily API](https://power.larc.nasa.gov/docs/services/api/temporal/daily/) v2 (`/api/temporal/daily/point`), community `AG` (Agroclimatology), UTC days.
-- **Period:** 1 January ten years back → today (currently 2016-01-01 → latest available day, ~3,970 days per location).
+- **Period:** one download from 1 January 1981 to today (~16,700 days). The "climate now" analyses use the last 10 years (currently 2016 onwards); the full record feeds *then and now* and *crops then and now* (section 2b).
 - **Spatial resolution:** meteorology on a 0.5° × 0.625° grid (≈ 55 × 35 km at 60° N). The map draws this cell as a dashed box.
 - **Upstream sources** (as listed in the response header): `MERRA2`, `GEOSIT`, `SYN1DEG`, `POWER`.
   MERRA-2 reanalysis covers most of the record. GEOS-IT near-real-time fills the most recent 1–3 months. CERES SYN1deg provides solar irradiance.
@@ -173,7 +172,7 @@ from cache, or from the offline snapshot.
 | `T2M` | Mean air temperature at 2 m | °C | GDD, sowing dates, anomalies |
 | `T2M_MAX` / `T2M_MIN` | Daily max / min air temperature at 2 m | °C | ET₀, frost dates, heat-stress days |
 | `PRECTOTCORR` | Precipitation, bias-corrected | mm/day | Rain totals, water balance, dry spells, crop water supply |
-| `RH2M` | Relative humidity at 2 m | % | Context |
+| `RH2M` | Relative humidity at 2 m | % | Blight-weather days (crops then and now) |
 | `ALLSKY_SFC_SW_DWN` | All-sky surface shortwave irradiance | MJ/m²/day | Context |
 | `GWETROOT` | Root-zone soil wetness (0 = dry, 1 = saturated) | – | Soil-moisture status and percentiles, tropical sowing onset |
 | `GWETTOP` | Surface soil wetness | – | Soil-moisture chart/table |
@@ -234,7 +233,7 @@ available day, and you can choose any date in the map toolbar.
 | `BlueMarble_ShadedRelief_Bathymetry` | Blue Marble relief (static) | 500 m |
 | `VIIRS_Black_Marble` | Night lights, 2016 composite (static) | 500 m |
 
-The GIBS layers are for visual context. The numerical analysis uses NASA POWER only.
+The GIBS layers are for visual context only; nothing is calculated from them. The numbers come from NASA POWER and NASA HLS.
 
 ### 4. NASA HLS: the field's own satellite record (when a field outline is drawn)
 
@@ -249,7 +248,8 @@ The GIBS layers are for visual context. The numerical analysis uses NASA POWER o
 - **Crop-type hints:** each season's curve is labelled *grass / ley* (green in late April–May and again in Sep–Oct), *autumn-sown* (green in spring, bare in autumn), *spring-sown* (bare until late May, peak before August), *late crop* (peak in August or later), *bare / failed* (peak NDVI below 0.5), *unclear*, or *too cloudy*.
   Each hint carries its evidence. The rules are for temperate seasons; southern dates are shifted six months, and the tropics are not covered.
   The field view calls these "likely" crops and says they are hints, not records. If the latest season's pattern differs from the crop the grower entered, it says so as an observation.
-  On two Stjørdal test fields the hints read *spring-sown ×5* and *spring-sown → unclear → grass ×3* (a cereal followed by a ley). No ground-truth validation has been done yet.
+  An unclear or late curve that never drops below green (NDVI 0.5) from late July to early September and is still green in autumn is read as *grass / ley* (no harvest; see the area-around section).
+  On the Stjørdal demo field the hints read *spring-sown ×3 → unclear → grass ×3* (a cereal followed by a ley). No field-level ground truth yet; the area-level check against Statistics Norway is described below.
 - **Productivity zones:** stronger and weaker parts of the field, from **EVI** (less saturated than NDVI in dense crops) for every 30 m pixel.
   For each season, each pixel's 90th-percentile EVI (at least 3 clear images) is divided by the median of the field's interior pixels that season, which removes the effect of different crops in different years.
   These values are averaged over at least 2 seasons. Weaker means below 0.95 of the field median, stronger above 1.05.
@@ -286,7 +286,11 @@ The GIBS layers are for visual context. The numerical analysis uses NASA POWER o
 - **Cross-checks seen in testing (Stjørdal):** Sentinel-2 and Landsat values from the same day agree within about 0.02 NDVI, and emergence in early June matches the weather-based sowing window.
 - **Limits:** cloudy regions have gaps. A 30 m pixel needs fields of at least 0.3 ha, and edge pixels mix with the neighbouring land. NDVI differences between seasons also reflect *which crop* was grown.
 
-### 5. Non-NASA map tiles
+### 5. Non-NASA data and map tiles
+
+- **ESA WorldCover 2021** (CC BY 4.0) via Microsoft Planetary Computer: the farmland mask for *what's grown around you*.
+- **Microsoft Planetary Computer**: open hosting of NASA HLS and ESA WorldCover (STAC API, anonymous token).
+- **Statistics Norway table 06462**: used once to check the area-around results; not used by the app.
 
 - **Esri World Imagery** basemap: high-resolution imagery for locating the actual parcel, since GIBS stops at ~250 m.
 - **Esri World Boundaries and Places**: place-name and boundary labels. GIBS `Reference_Labels_15m` returns error pages instead of transparent tiles where there are no labels, which rendered as black squares.
@@ -309,7 +313,8 @@ The GIBS layers are for visual context. The numerical analysis uses NASA POWER o
 ## Architecture
 
 ```
-frontend/            static HTML/CSS/JS (Leaflet 1.9.4 + Chart.js 4.4.1 from cdnjs, no build step)
+api/index.py, vercel.json, requirements.txt   Vercel entry point and hosted dependencies (no rasterio)
+frontend/            static HTML/CSS/JS (Leaflet 1.9.4 + Chart.js 4.4.1 vendored in frontend/vendor, no build step)
   index.html         field view (js/field.js, css/field.css, js/i18n/en.js)
   data.html          data view (js/data.js, js/charts.js, css/data.css)
   js/api.js, js/map.js, js/draw.js  shared API client, map, field-outline drawing
@@ -326,18 +331,19 @@ backend/app/
   advisor.py         rule-based advisories with evidence, plus language-neutral codes for the field view
   main.py            FastAPI routes + static hosting
   db.py              SQLite (POWER + HLS caches, saved fields with optional outline and demo flag)
-scripts/snapshot.py  save offline copies of POWER data
+scripts/snapshot.py  save offline copies of POWER, HLS, zones and area-around results
 ```
 
 | Endpoint | Purpose |
 | --- | --- |
 | `GET /api/analysis?lat&lon&soil&drainage&irrigation&previous_crop` | Full field analysis |
 | `POST /api/rotations/rank` | Rank rotations (optionally with the climate of `lat`/`lon`) |
+| `GET /api/crops` | Crop catalogue, goals and default rotations |
 | `GET /api/layers` | NASA GIBS layer configuration |
 | `POST /api/neighbourhood` `{boundary}` | Broad crop types on farmland within ~2 km, each season since 2020, with a map of the latest season |
 | `GET /api/crop-check?lat&lon&crop` | One crop through every season since 1981: ripening, heat, water, blight weather, then versus now |
 | `GET /api/change?lat&lon` | Then (1991–2000) versus now (last ten seasons) from the NASA POWER record since 1981 |
-| `POST /api/vegetation` `{boundary, seasons}` | NASA HLS NDVI/NDMI/EVI record for a field outline (GeoJSON Polygon); `seasons` optional (default: all since 2020); includes the productivity `trend` and the `season_check` (joined with NASA POWER weather) |
+| `POST /api/vegetation` `{boundary, seasons}` | NASA HLS NDVI/NDMI/EVI record for a field outline (GeoJSON Polygon); `seasons` optional (default: all since 2020); includes the productivity `trend`, the `season_check` (joined with NASA POWER weather) and the `usual_range` |
 | `POST /api/zones` `{boundary, seasons}` | Productivity zones from multi-season HLS EVI (30 m pixels, GeoJSON cells) |
 | `GET /api/export.csv?lat&lon` | Daily NASA POWER data + ET₀ as CSV |
 | `GET/POST/PUT/DELETE /api/fields` | Saved fields |
@@ -359,7 +365,7 @@ Start with one parcel in Stjørdal and use the same field ID across all inputs.
 | Dataset or input | Minimum to collect | Source | Status |
 | --- | --- | --- | --- |
 | Field boundary | One verified WGS84 GeoJSON Polygon or MultiPolygon with a stable field ID. Use a representative point inside the parcel for the weather query. | Grower-approved boundary or open agricultural parcel data verified against the actual field | **Partial.** Growers can draw and save a Polygon outline, and its centre is used for the weather query. Importing official parcel data is not done. |
-| Historical weather | Daily temperature and precipitation with dates, query coordinates, units, retrieval date, and missing-value metadata. | [NASA POWER Daily API](https://power.larc.nasa.gov/docs/services/api/temporal/daily/) | **Done.** 10 years, 9 parameters, provenance and missing-day counts in the UI. See [Data used](#data-used). |
+| Historical weather | Daily temperature and precipitation with dates, query coordinates, units, retrieval date, and missing-value metadata. | [NASA POWER Daily API](https://power.larc.nasa.gov/docs/services/api/temporal/daily/) | **Done.** 1981 to today (last 10 years for climate now), 9 parameters, provenance and missing-day counts in the UI. See [Data used](#data-used). |
 | Soil texture and drainage | Mapped topsoil texture and natural drainage for the parcel, plus coverage and source date. Where mapping is absent, record grower observations or a soil report and label the evidence source. | [NIBIO Kilden soil area reports](https://www.nibio.no/tjenester/kilden/veiledning-arealrapport) | **Partial.** Grower-entered only, and the evidence source is not recorded yet. |
 | Farm records and priorities | Previous crop at minimum, ideally several years of crop history, plus irrigation access and weights for soil health, water resilience, diversity, and yield stability. Record unknowns explicitly. | Grower or adviser | **Partial.** Previous crop, irrigation, priority weights and "Unknown" values are supported. Multi-year crop history is not. |
 | Regional crop reference | Crop families, broad water needs, drainage constraints, and locally suitable crop choices. Record the evidence and review date for each scoring assumption. | Local agronomist or documented regional guidance | **Partial.** 13 crops with approximate parameters in `backend/app/crops.py`. Not yet reviewed, and no review dates recorded. |
@@ -380,4 +386,4 @@ The crop parameters, the scoring rules and the viability gate still need review 
 - [x] Fetch and validate daily NASA POWER weather, then preserve a dated copy for offline demos (`data/snapshots/`, `scripts/snapshot.py`).
 - [x] Show the source, dates, coverage, and missing values next to the data in the UI (*Data provenance* section).
 - [ ] Have an agronomist review the scoring assumptions.
-- [ ] Verify on the deployed app that changing a crop or priority recalculates the ranking and that the score breakdown identifies the inputs used. *(Verified on a local run; no deployed instance exists yet.)*
+- [ ] Verify on the deployed app that changing a crop or priority recalculates the ranking and that the score breakdown identifies the inputs used. *(Hosted at https://rotation-lab-tawny.vercel.app: the ranking API recalculates when priorities change, checked 2026-11-15; the UI walkthrough there is not yet checked.)*

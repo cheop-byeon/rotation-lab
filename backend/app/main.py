@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field, field_validator
 
 import json
 
-from . import agro, crops, hls, power, stress
+from . import agro, change, crops, hls, power, stress
 from .advisor import build_advisories
 from .db import connect, init_db
 
@@ -246,6 +246,17 @@ async def rank(req: RankRequest):
     profile = req.model_dump(include={"soil", "drainage", "irrigation", "previous_crop"})
     return {"goals": crops.GOALS,
             "rankings": crops.rank_rotations(profile, req.priorities, [p.model_dump() for p in req.plans], suit)}
+
+
+@app.get("/api/change")
+async def what_changed(lat: float = Query(ge=-60, le=75), lon: float = Query(ge=-180, le=180)):
+    """Then (1991–2000) versus now (last ten seasons) from the full NASA POWER record since 1981."""
+    try:
+        series = await power.fetch_daily(lat, lon, full=True)
+    except power.PowerUnavailable as exc:
+        raise HTTPException(503, f"NASA POWER is unavailable and no cached data exists for this location: {exc}")
+    return {**change.what_changed(agro.Climate(series)),
+            "provenance": {"delivery": series.source, "retrieved_at": series.retrieved_at, "request_url": series.request_url}}
 
 
 @app.post("/api/vegetation")

@@ -1,6 +1,6 @@
 import { api } from './api.js';
 import { createMap } from './map.js';
-import { renderCharts, tableFor, renderVegCharts, renderTrendChart } from './charts.js';
+import { renderCharts, tableFor, renderVegCharts, renderTrendChart, renderChangeChart } from './charts.js';
 import { createDrawer, centroid } from './draw.js';
 
 const $ = (id) => document.getElementById(id);
@@ -58,14 +58,14 @@ async function analyze() {
     status('Enter a latitude between −60 and 75 and a longitude between −180 and 180.', 'error'); return;
   }
   $('analyze-btn').disabled = true;
-  status(`Acquiring 10 years of NASA POWER daily data for ${f.lat.toFixed(3)}, ${f.lon.toFixed(3)}… (first request ~5 s, then cached)`, 'busy');
+  status(`Acquiring NASA POWER daily data since 1981 for ${f.lat.toFixed(3)}, ${f.lon.toFixed(3)} (the last 10 years drive the analysis)… first request ~5 s, then cached`, 'busy');
   mapCtl.setTarget(f.lat, f.lon); mapCtl.showCell(f.lat, f.lon);
   try {
     const t0 = performance.now();
     const d = await api.analysis(f);
     state.analysis = d;
     renderHero(d, f); renderTelemetry(d); renderAdvisories(d); renderCharts(d); renderTable(); renderSuitability(d); renderSeasons(d); renderProvenance(d, f);
-    renderSatellite(f, d);
+    renderSatellite(f, d); renderChange(f);
     await rankPlans();
     const src = { live: 'live from NASA POWER', cache: 'from local cache', 'stale-cache': 'from an older cache (NASA POWER unreachable)', snapshot: 'from the offline snapshot' }[d.provenance.delivery];
     status(`Analysis complete · ${d.provenance.days.toLocaleString()} days of data ${src} · ${((performance.now() - t0) / 1000).toFixed(1)} s · latest day ${d.now.date}`, d.provenance.delivery === 'live' || d.provenance.delivery === 'cache' ? '' : 'error');
@@ -304,6 +304,30 @@ function finishBoundary() {
 
 const HINT_LABEL = { grass: 'Grass / ley', winter_crop: 'Autumn-sown', spring_crop: 'Spring-sown', late_crop: 'Late crop',
   bare: 'Bare / failed', unclear: 'Unclear', unknown: 'Too cloudy', unavailable: 'n/a (tropics)' };
+
+async function renderChange(f) {
+  const key = `${f.lat},${f.lon}`; state.changeFor = key;
+  $('change-table').innerHTML = '<div class="empty-state">Reading the NASA POWER record since 1981…</div>';
+  try {
+    const d = await api.change(f.lat, f.lon);
+    if (state.changeFor !== key) return;
+    const fmt = (m, v, lab) => lab || `${v}`;
+    const sign = (v) => `${v > 0 ? '+' : ''}${v}`;
+    $('change-table').innerHTML = `<table><thead><tr><th>Measure</th><th class="num">${esc(d.then)}</th><th class="num">${esc(d.now)}</th>
+      <th class="num">Change</th><th class="num">Trend per decade (${esc(d.record)})</th><th class="num">Mann–Kendall p</th><th>Consistent</th></tr></thead><tbody>
+      ${d.metrics.map((m) => `<tr${m.consistent ? ' class="row-strong"' : ''}><td>${esc(m.label)}</td><td class="num">${esc(fmt(m, m.then, m.then_label))}</td>
+        <td class="num">${esc(fmt(m, m.now, m.now_label))}</td><td class="num">${sign(m.change)} ${m.unit === 'date' ? 'days' : esc(m.unit)}</td>
+        <td class="num">${sign(m.per_decade)}</td><td class="num">${m.p_value < 0.001 ? '&lt; 0.001' : m.p_value}</td><td>${m.consistent ? 'yes' : '<span class="muted">no</span>'}</td></tr>`).join('')}
+      </tbody></table>`;
+    $('change-method').textContent = `${d.method} Source: ${d.provenance.delivery}.`;
+    const sel = $('change-metric');
+    sel.innerHTML = d.metrics.map((m) => `<option value="${m.code}">${esc(m.label)}</option>`).join('');
+    const show = () => { const m = d.metrics.find((x) => x.code === sel.value); $('change-chart-h').textContent = m.label; renderChangeChart(m, d); };
+    sel.onchange = show; show();
+  } catch (e) {
+    $('change-table').innerHTML = `<div class="empty-state">Could not read the long record: ${esc(e.message)}</div>`;
+  }
+}
 
 function renderTrend(tr, archive) {
   renderTrendChart(tr);

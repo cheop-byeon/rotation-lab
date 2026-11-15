@@ -12,6 +12,7 @@ export const api = {
   health: () => request('/api/health'),
   crops: () => request('/api/crops'),
   layers: () => request('/api/layers'),
+  change: (lat, lon) => request('/api/change?' + new URLSearchParams({ lat, lon })),
   analysis: (f) => request('/api/analysis?' + new URLSearchParams({
     lat: f.lat, lon: f.lon, soil: f.soil, drainage: f.drainage, irrigation: f.irrigation, previous_crop: f.previous_crop })),
   rank: (body) => request('/api/rotations/rank', { method: 'POST', body: JSON.stringify(body) }),

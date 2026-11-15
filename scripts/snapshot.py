@@ -20,7 +20,7 @@ from app.db import DEMO_FIELDS, init_db  # noqa: E402
 async def weather(lat, lon):
     await power.fetch_daily(lat, lon)
     await power.fetch_climatology(lat, lon)
-    for kind in ("daily", "clim"):
+    for kind in (power.DAILY_KIND, "clim"):
         print("saved", power.save_snapshot(kind, lat, lon))
 
 

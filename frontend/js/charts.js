@@ -197,3 +197,23 @@ export function renderTrendChart(trend) {
   draw('c-trend', { type: 'scatter', data: { datasets: sets }, options: o });
 }
 
+
+export function renderChangeChart(m, d) {
+  const c = C();
+  const [t0, t1] = d.then.split('–').map(Number), [n0, n1] = d.now.split('–').map(Number);
+  const mean = (a, b) => { const v = m.series.filter(([y]) => y >= a && y <= b).map(([, x]) => x); return v.reduce((s, x) => s + x, 0) / v.length; };
+  const seg = (a, b, label, colour) => ({ label, data: [{ x: a - 0.4, y: mean(a, b) }, { x: b + 0.4, y: mean(a, b) }], borderColor: colour,
+    borderWidth: 3, pointRadius: 0, showLine: true });
+  const sets = [
+    { label: 'Each season', data: m.series.map(([x, y]) => ({ x, y })), borderColor: c.muted, backgroundColor: c.muted, pointRadius: 3, pointHoverRadius: 6, showLine: false },
+    seg(t0, t1, `${d.then} average`, c.ink2), seg(n0, n1, `${d.now} average`, c.soil),
+  ];
+  const o = base(c, { yTitle: m.unit === 'date' ? 'day of season' : m.unit });
+  o.interaction = { mode: 'nearest', intersect: true };
+  o.scales.x = { ...o.scales.x, type: 'linear', min: m.series[0][0] - 0.5, max: m.series[m.series.length - 1][0] + 0.5,
+    ticks: { ...(o.scales.x?.ticks || {}), callback: (v) => String(v) },
+    afterBuildTicks: (ax) => { const a = Math.ceil(m.series[0][0] / 5) * 5; ax.ticks = Array.from({ length: Math.floor((m.series[m.series.length - 1][0] - a) / 5) + 1 }, (_, i) => ({ value: a + 5 * i })); } };
+  o.plugins.legend = { display: true, position: 'top', align: 'end', labels: { color: c.ink2, usePointStyle: true, boxWidth: 8, font: { family: 'JetBrains Mono', size: 10 } } };
+  o.plugins.tooltip.callbacks = { title: (items) => String(items[0].raw.x), label: (ctx) => ` ${ctx.dataset.label}: ${(+ctx.raw.y).toFixed(m.unit === '°C' ? 1 : 0)}` };
+  draw('c-change', { type: 'scatter', data: { datasets: sets }, options: o });
+}

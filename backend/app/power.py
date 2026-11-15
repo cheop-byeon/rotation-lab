@@ -35,7 +35,9 @@ DAILY_PARAMS = {
 CLIMATOLOGY_PARAMS = ["T2M", "T2M_MAX", "T2M_MIN", "PRECTOTCORR", "ALLSKY_SFC_SW_DWN"]
 MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
 
-HISTORY_YEARS = 10
+HISTORY_YEARS = 10           # "your climate now": the analyses use the last ten years
+RECORD_START = date(1981, 1, 1)  # full NASA POWER daily record, for comparing then with now
+DAILY_KIND = "dailyfull"      # cache/snapshot name of the 1981–today download
 CACHE_TTL_SECONDS = 12 * 3600
 SNAPSHOT_DIR = Path(__file__).resolve().parents[2] / "data" / "snapshots"
 
@@ -138,7 +140,7 @@ def daily_request(lat: float, lon: float, today: date | None = None) -> tuple[st
         "community": "AG",
         "latitude": f"{lat:.4f}",
         "longitude": f"{lon:.4f}",
-        "start": f"{today.year - HISTORY_YEARS}0101",
+        "start": RECORD_START.strftime("%Y%m%d"),
         "end": today.strftime("%Y%m%d"),
         "format": "JSON",
         "time-standard": "UTC",
@@ -146,10 +148,26 @@ def daily_request(lat: float, lon: float, today: date | None = None) -> tuple[st
     return DAILY_URL, params
 
 
-async def fetch_daily(lat: float, lon: float) -> DailySeries:
+async def fetch_daily(lat: float, lon: float, full: bool = False, today: date | None = None) -> DailySeries:
+    """Daily NASA POWER weather. One download covers 1981 to today; by default only the last
+    HISTORY_YEARS are returned, which is what every "your climate now" analysis uses."""
     url, params = daily_request(lat, lon)
-    payload, source, fetched_at = await _cached("daily", lat, lon, url, params)
-    return parse_daily(payload, lat, lon, source, fetched_at, str(httpx.URL(url, params=params)))
+    payload, source, fetched_at = await _cached(DAILY_KIND, lat, lon, url, params)
+    series = parse_daily(payload, lat, lon, source, fetched_at, str(httpx.URL(url, params=params)))
+    return series if full else recent(series, today)
+
+
+def recent(series: DailySeries, today: date | None = None) -> DailySeries:
+    start = date((today or date.today()).year - HISTORY_YEARS, 1, 1)
+    i = next((k for k, d in enumerate(series.dates) if d >= start), 0)
+    values = {p: v[i:] for p, v in series.values.items()}
+    missing = {}
+    for p, v in values.items():
+        last = max((k for k, x in enumerate(v) if x is not None), default=-1)
+        missing[p] = sum(1 for x in v[: last + 1] if x is None)
+    return DailySeries(lat=series.lat, lon=series.lon, elevation=series.elevation, dates=series.dates[i:], values=values,
+                       retrieved_at=series.retrieved_at, source=series.source, request_url=series.request_url,
+                       missing=missing, sources=series.sources)
 
 
 def parse_daily(payload: dict, lat: float, lon: float, source: str, fetched_at: float, request_url: str) -> DailySeries:

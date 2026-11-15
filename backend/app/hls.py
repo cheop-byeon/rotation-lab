@@ -268,6 +268,7 @@ warnings.filterwarnings("ignore", message="All-NaN slice encountered", category=
 ZONE_LOW, ZONE_HIGH = 0.95, 1.05   # relative to the field median of the same season
 MIN_INTERIOR = 8                   # whole pixels away from the edge needed to map zones
 MAX_ZONE_PIXELS = 3000             # ≈ 270 ha at 30 m
+ZONE_SEASONS = 5                   # seasons the views ask for (frontend api.zones); snapshots save zones for the same
 
 
 def compute_zones(px_obs: list[dict], geom: dict, lat: float) -> dict:
@@ -369,12 +370,22 @@ def field_zones(geom: dict, seasons: int | None = None, today: date | None = Non
     t0 = time.time()
     if _snapshot_first() and _snapshot_path(bkey).exists():
         saved = json.loads(_snapshot_path(bkey).read_text())
-        if saved.get("zones"):  # computed when the snapshot was made, so no raster library is needed here
-            return {**saved["zones"], "delivery": "snapshot", "seconds": round(time.time() - t0, 1)}
+        z = saved.get("zones")
+        # Saved zones are computed when the snapshot is made (no raster library needed here), but only for the seasons
+        # they were made with; another request is computed from the saved pixels below.
+        if z and z.get("seasons_requested", "all") == (seasons or "all"):
+            return {**z, "delivery": "snapshot", "seconds": round(time.time() - t0, 1)}
         px = [o for o in saved.get("pixels", [])
               if start <= o["date"] <= end and in_growing_months(date.fromisoformat(o["date"]), lat)]
         if px:
-            return {**compute_zones(px, geom, lat), "delivery": "snapshot", "seconds": round(time.time() - t0, 1)}
+            try:
+                return {**compute_zones(px, geom, lat), "seasons_requested": seasons or "all", "delivery": "snapshot",
+                        "seconds": round(time.time() - t0, 1)}
+            except ImportError:  # hosted version without a raster library: say which seasons the saved zones cover
+                if z:
+                    return {**z, "delivery": "snapshot", "seconds": round(time.time() - t0, 1),
+                            "note": "Only the saved zones are available on the hosted version; see seasons_used for the seasons they cover."}
+                _require_rasterio()
     try:
         with httpx.Client(timeout=httpx.Timeout(60.0, connect=10.0)) as client:
             items = search(geom, start, end, client)
@@ -388,7 +399,7 @@ def field_zones(geom: dict, seasons: int | None = None, today: date | None = Non
         if not cached:
             raise HLSUnavailable(f"Could not reach the HLS catalogue and no saved copy exists for this outline: {exc}") from exc
         cached = [o for o in cached if start <= o["date"] <= end and in_growing_months(date.fromisoformat(o["date"]), lat)]
-        return {**compute_zones(cached, geom, lat), "delivery": delivery, "seconds": round(time.time() - t0, 1)}
+        return {**compute_zones(cached, geom, lat), "seasons_requested": seasons or "all", "delivery": delivery, "seconds": round(time.time() - t0, 1)}
     items = [it for it in items if in_growing_months(date.fromisoformat(it["properties"]["datetime"][:10]), lat)]
     keys = {it["id"]: prefix + it["id"] for it in items}
     cached = _cache_get(list(keys.values()))
@@ -409,7 +420,7 @@ def field_zones(geom: dict, seasons: int | None = None, today: date | None = Non
                 fresh.append((keys[it["id"]], o))
     _cache_put(fresh)
     px = list(cached.values()) + [o for _, o in fresh]
-    return {**compute_zones(px, geom, lat), "delivery": "live", "images": len(px), "seconds": round(time.time() - t0, 1)}
+    return {**compute_zones(px, geom, lat), "seasons_requested": seasons or "all", "delivery": "live", "images": len(px), "seconds": round(time.time() - t0, 1)}
 
 
 # ---------------------------------------------------------------- cache

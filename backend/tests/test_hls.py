@@ -180,3 +180,16 @@ def test_default_seasons_follow_the_archive():
     assert hls.default_seasons(63, _d(2026, 11, 15)) == 7          # 2020..2026
     assert hls.season_range(63, None, _d(2026, 11, 15))[0] == "2020-01-01"
     assert hls.season_range(-34, None, _d(2026, 11, 15))[0] >= "2020-01-01"
+
+
+def test_hosted_zones_use_saved_result_only_for_the_same_seasons(monkeypatch, tmp_path):
+    """The saved zones answer requests for the seasons they were made with; the views ask for ZONE_SEASONS."""
+    import json as _json
+    from app.db import DEMO_FIELD
+    monkeypatch.setenv("ROTATION_LAB_SNAPSHOT_FIRST", "1")
+    snap = _json.loads(hls._snapshot_path(hls.boundary_key(DEMO_FIELD["boundary"])).read_text())
+    assert snap["zones"]["seasons_requested"] == hls.ZONE_SEASONS          # snapshot made for what the views request
+    z = hls.field_zones(DEMO_FIELD["boundary"], seasons=hls.ZONE_SEASONS)
+    assert z["delivery"] == "snapshot" and len(z["seasons_used"]) <= hls.ZONE_SEASONS
+    other = hls.field_zones(DEMO_FIELD["boundary"], seasons=None)          # different request: computed, not the saved one
+    assert other["seasons_requested"] == "all"

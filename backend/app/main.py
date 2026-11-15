@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field, field_validator
 
 import json
 
-from . import agro, change, cropcheck, crops, hls, neighbourhood, power, stress
+from . import agro, change, cropcheck, crops, hls, neighbourhood, power, publicdata, stress
 from .advisor import build_advisories
 from .db import connect, init_db
 
@@ -276,6 +276,18 @@ async def crop_check(lat: float = Query(ge=-60, le=75), lon: float = Query(ge=-1
     return cropcheck.crop_then_now(agro.Climate(series), crop)
 
 
+@app.get("/api/soil")
+async def soil_estimate(lat: float = Query(ge=-60, le=75), lon: float = Query(ge=-180, le=180)):
+    """Soil texture estimate from ISRIC SoilGrids (250 m model) for the field's location."""
+    return await publicdata.soil(lat, lon)
+
+
+@app.get("/api/farm-crops")
+async def farm_crops(lat: float = Query(ge=-60, le=75), lon: float = Query(ge=-180, le=180)):
+    """Crops reported by the farm based on the property under this point (Norway, Landbruksdirektoratet open data)."""
+    return await publicdata.farm_crops(lat, lon)
+
+
 @app.post("/api/vegetation")
 async def vegetation(req: VegetationRequest):
     """NDVI / NDMI record for a field outline from NASA HLS (30 m), clouds masked, by season."""
@@ -332,10 +344,7 @@ async def export_csv(lat: float = Query(ge=-60, le=75), lon: float = Query(ge=-1
 def _field_row(r) -> dict:
     d = dict(r)
     d["boundary"] = json.loads(d["boundary"]) if d.get("boundary") else None
-    d["reported_crops"] = json.loads(d["reported_crops"]) if d.get("reported_crops") else None
-    if d["reported_crops"]:
-        from .db import REPORTED_SOURCE
-        d["reported_source"] = REPORTED_SOURCE
+    d.pop("reported_crops", None)  # reported crops now come from /api/farm-crops for any Norwegian field
     return d
 
 

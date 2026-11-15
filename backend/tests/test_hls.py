@@ -83,8 +83,10 @@ def test_crop_hint_honest_when_unsure():
 
 def test_demo_field_works_offline_from_snapshots(monkeypatch):
     """A fresh install with no internet still shows the demo field's weather and satellite record."""
-    from app import power
+    from app import power, publicdata
     from app.db import DEMO_FIELDS
+    monkeypatch.setattr(publicdata, "SOILGRIDS", "https://soilgrids.invalid/query")
+    monkeypatch.setattr(publicdata, "EIENDOM", "https://eiendom.invalid/punkt")
     monkeypatch.setattr(power, "DAILY_URL", "https://power.invalid/api")
     monkeypatch.setattr(power, "CLIMATOLOGY_URL", "https://power.invalid/api")
     monkeypatch.setattr(hls, "STAC_SEARCH", "https://stac.invalid/search")
@@ -101,12 +103,16 @@ def test_demo_field_works_offline_from_snapshots(monkeypatch):
         # the demo field is a real Stjørdal field: its satellite hints agree with the crops its farm reported
         demo = DEMO_FIELDS[0]
         hints = {s["season"]: s["crop_hint"]["type"] for s in cl.post("/api/vegetation", json={"boundary": demo["boundary"]}).json()["seasons"]}
-        reported = {r["year"]: r["crop"] for r in demo["reported_crops"]}
-        assert reported[2020] == "Barley" and hints[2020] == "new_ley"   # bare in spring, grass sown under the barley
-        assert all(hints[y] == "grass" for y in range(2021, 2025)) and all(reported[y] == "Grass ley" for y in range(2021, 2025))
+        fc = cl.get("/api/farm-crops", params={"lat": demo["lat"], "lon": demo["lon"]}).json()
+        assert fc["status"] == "ok" and len(fc["farms"]) == 1 and "Landbruksdirektoratet" in fc["source"]
+        reported = {y["year"]: y for y in fc["farms"][0]["years"]}
+        assert all(y["one_crop"] for y in reported.values())   # one crop on all its arable land: also this field's crop
+        assert reported[2020]["main"] == "Barley" and hints[2020] == "new_ley"   # bare in spring, grass sown under the barley
+        assert all(hints[y] == "grass" and reported[y]["main"] == "Grass ley" for y in range(2021, 2025))
+        soil = cl.get("/api/soil", params={"lat": demo["lat"], "lon": demo["lon"]}).json()
+        assert soil["status"] == "ok" and soil["soil"] == demo["soil"] == "Loamy" and soil["delivery"] == "snapshot"
         listed = cl.get("/api/fields").json()
         assert [f["name"] for f in listed if f["demo"]] == ["Stjørdal 01"]
-        assert listed[0]["reported_crops"] and "Landbruksdirektoratet" in listed[0]["reported_source"]
 
 
 def _px_obs(grid, season_dates, tile="T32VNR"):

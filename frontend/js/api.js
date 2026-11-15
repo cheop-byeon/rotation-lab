@@ -24,5 +24,7 @@ export const api = {
   neighbourhood: (boundary) => request('/api/neighbourhood', { method: 'POST', body: JSON.stringify({ boundary }) }),
   zones: (boundary, seasons = 5) => request('/api/zones', { method: 'POST', body: JSON.stringify({ boundary, seasons }) }),
   vegetation: (boundary, seasons = null) => request('/api/vegetation', { method: 'POST', body: JSON.stringify({ boundary, seasons }) }),
+  soil: (lat, lon) => request('/api/soil?' + new URLSearchParams({ lat, lon })),
+  farmCrops: (lat, lon) => request('/api/farm-crops?' + new URLSearchParams({ lat, lon })),
   exportUrl: (f) => `/api/export.csv?lat=${f.lat}&lon=${f.lon}`,
 };

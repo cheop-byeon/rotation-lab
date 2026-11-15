@@ -3,7 +3,7 @@
   "functions": {
     "api/index.py": {
       "maxDuration": 60,
-      "includeFiles": "{backend/app/**,frontend/**,data/snapshots/**}"
+      "includeFiles": "{backend/app/**,frontend/**,data/snapshots/**,data/farm_crops.json.gz}"
     }
   }
 }

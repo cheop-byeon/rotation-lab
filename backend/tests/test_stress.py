@@ -190,3 +190,13 @@ def test_usual_range_compares_with_same_crop_seasons_inside_the_crop_window():
     assert hls.usual_range(by, sl, 46.6)["status"] == "within"
     sl[0]["crop_hint"]["type"] = "grass"                                          # only one earlier winter crop left
     assert hls.usual_range(by, sl, 46.6)["status"] == "too_few"
+
+
+def test_usda_texture_classes_and_farm_years():
+    from app import publicdata as p
+    assert p.usda_class(51, 39, 10) == "loam" and p.usda_class(90, 5, 5) == "sand" and p.usda_class(20, 30, 50) == "clay"
+    assert p.usda_class(10, 70, 20) == "silt loam" and p.usda_class(65, 25, 10) == "sandy loam"
+    years = p._years({"2020": {"Barley": 45, "Grass ley": 1, "Pasture": 5}, "2021": {"Barley": 30, "Grass ley": 16}})
+    assert years[0]["one_crop"] and years[0]["main"] == "Barley" and years[0]["arable_daa"] == 46   # pasture left out
+    assert not years[1]["one_crop"]                                                                    # mixed: field unknown
+    assert not p.in_norway(46.6, 20.66)

@@ -513,13 +513,13 @@ async function renderSatellite(f, d) {
   state.vegFor = key;
   panel.innerHTML = '<div class="mission-status busy"><span class="scanner"></span><span>Reading NASA HLS images inside the boundary (cloud-masked, every season since 2020)…</span></div>';
   try {
-    const veg = await api.vegetation(f.boundary);
+    const [veg, fc] = await Promise.all([api.vegetation(f.boundary), api.farmCrops(f.lat, f.lon).catch(() => null)]);
     if (state.vegFor !== key) return;
     state.veg = veg;
     const wx = Object.fromEntries(d.seasons.map((s) => [s.label, s]));
-    // Reported crops belong to the saved field, and only while its outline is unchanged.
-    const saved = state.fields.find((x) => x.id === state.fieldId && JSON.stringify(x.boundary) === key);
-    const rep = saved?.reported_crops?.length ? Object.fromEntries(saved.reported_crops.map((r) => [String(r.year), r.crop])) : null;
+    // Crops the farm based on this property reported (Landbruksdirektoratet, per farm); one farm only, else not tied to the field.
+    const rep = fc?.status === 'ok' && fc.farms.length === 1 ? Object.fromEntries(fc.farms[0].years.map((y) => [String(y.year),
+      y.one_crop ? y.main : `mixed: ${Object.entries(y.areas).filter(([k]) => k !== 'Pasture').map(([k, v]) => `${k} ${v}`).join(', ')} daa`])) : null;
     const st = veg.stats, n = (v, k = 3) => (v == null ? '—' : v.toFixed(k));
     const chip = (k, v) => `<div class="stat-chip"><div class="k"><span>${k}</span></div><div class="v">${v}</div></div>`;
     panel.innerHTML = `<div class="sat-stats">${[chip('Field area', `${veg.area_ha.toFixed(2)} ha`), chip('Images found', st.images_found),
@@ -544,7 +544,7 @@ async function renderSatellite(f, d) {
       <div class="zones-block"><div class="chart-title"><h3>Productivity trend (season-long EVI, ${veg.trend.seasons.length ? `${veg.trend.seasons[0].season}–${veg.trend.seasons[veg.trend.seasons.length - 1].season}` : '—'})</h3></div>
         <div class="zones-grid"><div class="chart-box"><canvas id="c-trend" aria-label="Season-long EVI by season with trend line"></canvas></div><div id="trend-info"></div></div></div>
       <div class="zones-block"><div class="chart-title"><h3>Season check: weak seasons and their weather</h3></div><div id="season-check"></div></div>
-      ${rep ? `<p class="chart-note"><b>Reported crops:</b> ${esc(saved.reported_source)}.</p>` : ''}
+      ${fc ? `<p class="chart-note"><b>Reported crops</b> (${esc(fc.source)}): ${esc(rep ? fc.note : fc.message || 'several farms are based on this property, so their crops are not tied to this field.')}</p>` : ''}
       <p class="chart-note">Crop-type hints are rule-based on the curve shape (hover a hint for its evidence): ${esc(veg.method.crop_hint)}</p>
       <p class="chart-note">Weather columns come from NASA POWER for the same season (frost-free window); “—” where the season is not complete in the weather record.</p>
       <details><summary class="label" style="cursor:pointer">All ${veg.observations.length} image readings</summary><div class="data-table-wrap"><table><thead><tr><th>Date</th><th>Sensor</th><th class="num">Field clear</th><th class="num">Tile cloud</th><th class="num">NDVI</th><th class="num">NDMI</th></tr></thead><tbody>

@@ -131,16 +131,21 @@ export function growWindow(season, lat) {
   return [D(season - 1, 9, 1), D(season, 3, 30)];
 }
 
-export function renderVegCharts(veg) {
+export function renderVegCharts(veg, greenness = 'ndvi') {
   const c = C(), lat = veg.centroid.lat;
-  const seasons = veg.seasons.filter((s) => s.clear_images > 0).slice(-5);
-  const colour = Object.fromEntries(seasons.map((s, i) => [s.season, SEASON_COLOURS[i + (5 - seasons.length)]]));
+  const seasons = veg.seasons.filter((s) => s.clear_images > 0);
+  const recent = seasons.slice(-5);
+  // the last five seasons get the validated categorical colours; older seasons are grey context
+  const colour = Object.fromEntries(seasons.map((s) => [s.season, recent.includes(s)
+    ? SEASON_COLOURS[recent.indexOf(s) + (5 - recent.length)] : '#4B5563']));
   const ref = growWindow(seasons[seasons.length - 1]?.season ?? new Date().getUTCFullYear(), lat)[0];
   const sets = (key) => seasons.map((s) => {
     const [a, b] = growWindow(s.season, lat);
     const data = veg.observations.filter((o) => o[key] != null).map((o) => [Date.parse(o.date + 'T00:00:00Z'), o])
       .filter(([d]) => d >= a && d <= b).map(([d, o]) => ({ x: (d - a) / 864e5, y: o[key], date: o.date, sensor: o.sensor, clear: o.clear_pct }));
-    return { label: s.label, data, borderColor: colour[s.season], backgroundColor: colour[s.season], pointRadius: 2.5, pointHoverRadius: 6, borderWidth: 2, tension: 0.2 };
+    const old = !recent.includes(s);
+    return { label: s.label, data, borderColor: colour[s.season], backgroundColor: colour[s.season], pointRadius: old ? 0 : 2.5, pointHoverRadius: 6,
+      borderWidth: old ? 1.2 : 2, tension: 0.2, order: old ? 1 : 0 };
   });
   const span = (growWindow(seasons[seasons.length - 1]?.season ?? 2000, lat)[1] - ref) / 864e5;
   const opts = (yTitle, yMin, yMax) => {
@@ -155,7 +160,28 @@ export function renderVegCharts(veg) {
     o.plugins.tooltip.callbacks = { title: (items) => items[0].raw.date, label: (ctx) => ` ${ctx.dataset.label} · ${ctx.parsed.y.toFixed(3)} · ${ctx.raw.sensor} · ${Math.round(ctx.raw.clear * 100)}% clear` };
     return o;
   };
-  draw('c-ndvi', { type: 'line', data: { datasets: sets('ndvi') }, options: opts('NDVI', -0.1, 1) });
+  draw('c-ndvi', { type: 'line', data: { datasets: sets(greenness) }, options: opts(greenness.toUpperCase(), -0.1, 1) });
   draw('c-ndmi', { type: 'line', data: { datasets: sets('ndmi') }, options: opts('NDMI', -0.4, 0.8) });
-  return seasons.map((s) => ({ label: s.label, colour: colour[s.season] }));
+  const older = seasons.filter((s) => !recent.includes(s));
+  return [...(older.length ? [{ label: `${older[0].label}–${older[older.length - 1].label}`, colour: '#4B5563' }] : []),
+    ...recent.map((s) => ({ label: s.label, colour: colour[s.season] }))];
+}
+
+export function renderTrendChart(trend) {
+  const c = C(), pts = trend.seasons;
+  const sets = [{ label: 'Season-long EVI', data: pts.map((s) => ({ x: s.season, y: s.evi_mean })), borderColor: c.soil, backgroundColor: c.soil,
+    pointRadius: 5, pointHoverRadius: 7, borderWidth: 0, showLine: false }];
+  if (trend.status === 'ok') {
+    sets.push({ label: 'Theil–Sen trend', data: trend.fit.map(([x, y]) => ({ x, y })),
+      borderColor: c.ink2, borderDash: [6, 5], borderWidth: 2, pointRadius: 0, showLine: true });
+  }
+  const o = base(c, { yTitle: 'mean EVI' });
+  o.interaction = { mode: 'nearest', intersect: true };
+  const years = [...trend.seasons.map((s) => s.season), ...trend.skipped.map((s) => s.season)];
+  o.scales.x = { ...o.scales.x, type: 'linear', min: Math.min(...years) - 0.5, max: Math.max(...years) + 0.5,
+    ticks: { ...(o.scales.x?.ticks || {}), callback: (v) => String(v) },
+    afterBuildTicks: (ax) => { ax.ticks = Array.from({ length: Math.max(...years) - Math.min(...years) + 1 }, (_, i) => ({ value: Math.min(...years) + i })); } };
+  o.plugins.tooltip.callbacks = { title: (items) => String(items[0].raw.x),
+    afterLabel: (ctx) => ctx.datasetIndex === 0 ? ` likely crop: ${pts[ctx.dataIndex].crop ?? '—'}` : '' };
+  draw('c-trend', { type: 'scatter', data: { datasets: sets }, options: o });
 }

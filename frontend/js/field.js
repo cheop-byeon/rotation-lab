@@ -419,6 +419,15 @@ function spaceInsight(veg) {
 
 // What the curve shape suggests, compared with what the grower entered (an observation, not a correction).
 const HINT_FOR_FAMILY = { Forage: 'grass', Solanaceae: 'late_crop', 'Warm cereal': 'late_crop' };
+function trendNote(veg) {
+  const tr = veg.trend;
+  if (!tr || !tr.seasons.length) return [];
+  const range = `${tr.seasons[0].season}–${tr.seasons[tr.seasons.length - 1].season}`;
+  if (tr.status !== 'ok') return [t('trend.tooFew', { n: tr.seasons.length, need: tr.min_seasons })];
+  if (tr.direction === 'none') return [t('trend.none', { range })];
+  return [t(tr.direction === 'rising' ? 'trend.rising' : 'trend.falling', { range, pct: Math.abs(tr.pct_per_year) })];
+}
+
 function hintNotes(veg) {
   const known = veg.seasons.filter((s) => ['grass', 'winter_crop', 'spring_crop', 'late_crop', 'bare'].includes(s.crop_hint?.type));
   const out = [];
@@ -457,7 +466,7 @@ async function renderSpace(f) {
     const T = STR.space.table;
     setTimeout(() => renderZones(f.boundary, key), 0);
     box.innerHTML = `<p class="small muted">${esc(t('outline.set', { ha: veg.area_ha.toFixed(1) }))}</p>${greennessChart(veg)}
-      <ul class="season-facts">${[...hintNotes(veg), ...spaceInsight(veg)].map((x) => `<li>${esc(x)}</li>`).join('')}</ul>
+      <ul class="season-facts">${[...hintNotes(veg), ...trendNote(veg), ...spaceInsight(veg)].map((x) => `<li>${esc(x)}</li>`).join('')}</ul>
       <div class="table-wrap"><table class="simple"><thead><tr><th>${esc(T.year)}</th><th>${esc(T.likely)}</th><th>${esc(T.up)}</th><th>${esc(T.peak)}</th><th>${esc(T.value)}</th><th>${esc(T.clear)}</th></tr></thead><tbody>${rows}</tbody></table></div>
       <h3 class="sub-h">${esc(t('zones.title'))}</h3>
       <div id="zones-map" class="zones-map"></div><p id="zones-text"></p>
@@ -489,7 +498,16 @@ async function renderZones(boundary, key) {
     const legend = ['weaker', 'average', 'stronger'].map((k) => `<span><i style="background:${ZONE_COLOUR[k]}"></i>${esc(t('zones.' + k))}</span>`).join('') +
       `<span><i class="edge"></i>${esc(t('zones.edge'))}</span>`;
     text().innerHTML = `<span class="cal-legend zone-key">${legend}</span><br>${esc(z.uniform ? t('zones.uniform', { n })
-      : t('zones.summary', { w: pct(z.share.weaker), s: pct(z.share.stronger), n }))} ${esc(t('zones.note'))}`;
+      : t('zones.summary', { w: pct(z.share.weaker), s: pct(z.share.stronger), n }))} ${esc(t('zones.note'))}
+      <br><button class="btn secondary small-btn" type="button" id="zones-dl">${esc(t('zones.download'))}</button>`;
+    $('zones-dl').onclick = () => {
+      const fc = { type: 'FeatureCollection', name: `Rotation Lab zones · ${state.field?.name || 'field'}`,
+        features: z.cells.features.map((f) => ({ ...f, properties: { ...f.properties, zone_id: { edge: 0, weaker: 1, average: 2, stronger: 3 }[f.properties.zone] } })) };
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([JSON.stringify(fc)], { type: 'application/geo+json' }));
+      a.download = `zones_${(state.field?.name || 'field').replace(/[^\w-]+/g, '_')}.geojson`;
+      a.click(); URL.revokeObjectURL(a.href);
+    };
   } catch (e) {
     if (state.vegFor === key && text()) text().textContent = t('space.failed', { error: e.message });
   }

@@ -67,7 +67,7 @@ class FieldIn(BaseModel):
 
 class VegetationRequest(BaseModel):
     boundary: dict
-    seasons: int = Field(default=5, ge=1, le=8)
+    seasons: int | None = Field(default=None, ge=1, le=12)  # None = every season in the archive (2020 onward)
 
     @field_validator("boundary")
     @classmethod

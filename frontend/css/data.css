@@ -82,6 +82,9 @@ main { max-width: 1360px; margin: 0 auto; padding: 0 clamp(16px, 3vw, 40px) 64px
 .season-key span { display: inline-flex; align-items: center; gap: 6px; }
 .season-key i { width: 14px; height: 4px; border-radius: 2px; display: inline-block; }
 .zones-block { margin: 18px 0; }
+.mini-switch { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.mini-switch button { background: none; border: 0; color: var(--ink-2); font: 600 .74rem var(--mono); padding: 5px 10px; cursor: pointer; }
+.mini-switch button[aria-pressed="true"] { background: var(--panel-2); color: var(--ink); }
 .zones-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 18px; align-items: start; }
 .zones-map { height: 360px; border-radius: 12px; border: 1px solid var(--line); background: #0a0f14; }
 .zone-legend { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }

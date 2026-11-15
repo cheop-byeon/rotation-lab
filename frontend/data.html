@@ -22,7 +22,7 @@
     <span>Rotation <b>Lab</b></span>
   </a>
   <nav class="topnav" aria-label="Sections">
-    <a href="#telemetry">Conditions</a><a href="#briefing">Briefing</a><a href="#signals">Trends</a><a href="#change">Then &amp; now</a><a href="#satellite">Satellite</a>
+    <a href="#telemetry">Conditions</a><a href="#briefing">Briefing</a><a href="#signals">Trends</a><a href="#change">Then &amp; now</a><a href="#satellite">Satellite</a><a href="#around">Around</a>
     <a href="#crops">Crops</a><a href="#planner">Rotation</a><a href="#seasons">Seasons</a><a href="#provenance">Data</a>
   </nav>
   <div class="top-right">
@@ -192,6 +192,18 @@
   </section>
 
   <!-- CROPS -->
+  <section class="section" id="around" aria-labelledby="around-h">
+    <div class="section-head"><p class="tag">NASA HLS · ESA WORLDCOVER · 4 KM</p><h2 id="around-h">What’s grown around the field</h2>
+      <p>The likely crop type of every 30 m farmland pixel within about 2 km, each season since 2020, from the same curve-shape rules as the field’s own hints. The field itself is left out.</p></div>
+    <div class="panel">
+      <div id="around-status"><div class="empty-state">Draw or load a field boundary to read the area around it.</div></div>
+      <div class="zones-grid"><div id="around-map" class="zones-map"></div><div class="chart-box"><canvas id="c-around" aria-label="Share of farmland by likely crop type, each season"></canvas></div></div>
+      <div class="data-table-wrap" style="max-height:none" id="around-table"></div>
+      <p class="chart-note" id="around-check"><b>Checked against official statistics (Statistics Norway, table 06462, Stjørdal municipality, 2020–2025):</b> cereals and oilseeds 52% of farmland, grass and leys 46%, potatoes and green fodder ~2%. Around the Stjørdal demo field we read spring-sown 38–51%, grass 10–39%, late crops 10–28% and unclear 6–16%. Spring-sown crops match within about 5–15 points and the order is right; grass and leys are undercounted by about 20 points, and most of the missing grass shows up as late or unclear crops (northern leys green up late and dip after each cut). The square around the field is not the whole municipality, so this is a rough check. Not checked for Hungary.</p>
+      <p class="chart-note" id="around-method"></p>
+    </div>
+  </section>
+
   <section class="section" id="crops" aria-labelledby="crops-h">
     <div class="section-head"><p class="tag">CROP-SEASON SIMULATION</p><h2 id="crops-h">Crop suitability</h2>
       <p>Each crop is simulated through every past season: sown once the soil is warm and moist after the last damaging frost, grown until maturity, a killing frost or season end.</p></div>

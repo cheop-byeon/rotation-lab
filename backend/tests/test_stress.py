@@ -136,3 +136,33 @@ def test_potato_check_offline_reports_blight_weather_and_ripening(monkeypatch):
     assert "blight_days" in codes and "heat_days" in codes
     assert d["ripened"]["then_of"] == 10 and d["ripened"]["now_of"] == 10
     assert "not modelled" in d["method"] and "prices" in d["method"]
+
+
+# ---- what's grown around you
+def test_vectorised_crop_hints_match_the_field_rules():
+    import numpy as np
+    from datetime import date, timedelta
+    from app import neighbourhood as nb
+    rng = np.random.default_rng(7)
+    dates = sorted({date(2023, 4, 1) + timedelta(int(x)) for x in rng.integers(0, 213, 40)})
+    v = rng.uniform(0.1, 0.95, (len(dates), 600)).astype("float32")
+    v[:, :50] = rng.uniform(0.1, 0.45, (len(dates), 50))  # never green: bare
+    v[rng.random(v.shape) < 0.3] = np.nan
+    got = nb.classify(v, dates, 60.0)
+    codes = {k: i for i, k in enumerate(nb.CLASSES)}
+    for p in range(v.shape[1]):
+        obs = [{"date": d.isoformat(), "ndvi": None if np.isnan(v[i, p]) else float(v[i, p])} for i, d in enumerate(dates)]
+        assert codes[hls.crop_hint(obs, 60.0)["type"]] == got[p]
+    assert (got == codes["bare"]).sum() > 0
+
+
+def test_neighbourhood_shift_needs_a_consistent_trend():
+    from app import neighbourhood as nb
+    import numpy as np
+    farm = np.ones((4, 4), dtype=bool)
+    noisy = [(2020 + i, np.full((4, 4), c, dtype=np.int8)) for i, c in enumerate([2, 3, 2, 3, 2, 3])]
+    rows, change = nb._summarise(noisy, farm, {y: str(y) for y in range(2020, 2026)})
+    assert all(r["usable"] for r in rows) and change["notable"] == []   # alternating: no shift
+    steady = [(2020 + i, np.where(np.arange(16).reshape(4, 4) < 2 * i + 2, 2, 4).astype(np.int8)) for i in range(6)]
+    _, change = nb._summarise(steady, farm, {y: str(y) for y in range(2020, 2026)})
+    assert "grass" in change["notable"] and change["classes"]["grass"]["pp_per_year"] > 0

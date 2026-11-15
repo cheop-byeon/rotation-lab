@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
-from app import hls, power  # noqa: E402
+from app import hls, neighbourhood, power  # noqa: E402
 from app.db import DEMO_FIELDS, init_db  # noqa: E402
 
 
@@ -36,6 +36,9 @@ def main(points):
         record = hls.field_record(f["boundary"], seasons=None)
         print(f"{f['name']} HLS: {record['stats']['images_found']} images, {record['stats']['clear_images']} clear ({record['delivery']})")
         print("saved", hls.save_snapshot(f["boundary"]))
+        nb = neighbourhood.neighbourhood(f["boundary"])
+        print(f"{f['name']} area around: {nb.get('farmland_ha')} ha farmland ({nb.get('delivery')})")
+        print("saved", neighbourhood.save_snapshot(f["boundary"]))
 
 
 if __name__ == "__main__":

@@ -217,3 +217,15 @@ export function renderChangeChart(m, d, canvas = 'c-change') {
   o.plugins.tooltip.callbacks = { title: (items) => String(items[0].raw.x), label: (ctx) => ` ${ctx.dataset.label}: ${(+ctx.raw.y).toFixed(m.unit === '°C' ? 1 : 0)}` };
   draw(canvas, { type: 'scatter', data: { datasets: sets }, options: o });
 }
+
+export function renderAroundChart(d, colours, names) {
+  const c = C();
+  const seasons = d.seasons.filter((s) => s.usable);
+  const keys = ['spring_crop', 'winter_crop', 'late_crop', 'grass', 'unclear', 'bare'];
+  const sets = keys.map((k) => ({ label: names[k], data: seasons.map((s) => +(100 * (s.shares[k] || 0)).toFixed(1)),
+    backgroundColor: colours[k], borderColor: c.surface, borderWidth: { top: 2 }, borderSkipped: false, stack: 'all' }));
+  const o = base(c, { yTitle: '% of farmland', yMin: 0, yMax: 100 });
+  o.scales.x.stacked = true; o.scales.y.stacked = true;
+  o.plugins.tooltip.callbacks = { label: (ctx) => ` ${ctx.dataset.label}: ${ctx.raw}%` };
+  draw('c-around', { type: 'bar', data: { labels: seasons.map((s) => s.label), datasets: sets }, options: o });
+}

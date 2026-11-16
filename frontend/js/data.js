@@ -67,7 +67,10 @@ async function renderCrumbs(f) {
   $('crumb-here').textContent = f.name;
   const a = await areaOf(f);
   $('crumb-area').hidden = !a;
-  if (a) { $('crumb-area-link').textContent = a.name; $('crumb-area-link').href = `/?area=${a.code}`; }
+  if (a) { $('crumb-area-link').textContent = a.name; $('crumb-area-link').href = `/area?area=${a.code}`; }
+  const sp = f?.spot;  // opened from a farm page: show the farm in the trail
+  $('crumb-farm').hidden = !sp?.fq;
+  if (sp?.fq) { $('crumb-farm-link').textContent = sp.fn || 'Farm'; $('crumb-farm-link').href = `/farm?${sp.fq}`; }
 }
 
 // ------------------------------------------------------------------ fields

@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Rotation Lab · Your farm</title>
+  <meta name="description" content="Your farm's land, what it reported growing, and how it compares with your municipality.">
+  <meta name="theme-color" content="#F6F4EE">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232E7D32'/%3E%3Cpath d='M18 44c14 0 28-10 28-28-16 0-28 10-28 28z' fill='%23FFFDF8'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/vendor/leaflet-1.9.4/leaflet.min.css">
+  <link rel="stylesheet" href="/css/field.css">
+  <script src="/vendor/leaflet-1.9.4/leaflet.min.js" defer></script>
+  <script type="module" src="/js/farm.js"></script>
+</head>
+<body>
+<header class="bar">
+  <a class="brand" href="/" aria-label="Rotation Lab home">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#2E7D32"/><path d="M9 22c7 0 14-5 14-14-8 0-14 5-14 14z" fill="#FFFDF8"/></svg>
+    <span>Rotation Lab</span>
+  </a>
+  <div class="bar-right"><a class="choose-land" href="/" data-t="nav.findFarm">Find my farm</a></div>
+</header>
+
+<main>
+  <nav class="crumbs" aria-label="Where you are"><a href="/" data-t="nav.findFarm">Find my farm</a><span id="crumb-area" hidden> › <a id="crumb-area-link" href="/area"></a></span> › <span id="crumb-here" aria-current="page"></span></nav>
+  <h1 class="area-title" id="farm-title" data-t="farm.loading">Loading your farm…</h1>
+  <p class="area-lead" id="farm-lead"></p>
+
+  <div id="farm-body" hidden>
+    <section class="card" aria-labelledby="land-h">
+      <h2 id="land-h" data-t="farm.landTitle">Choose a field</h2>
+      <div id="parcel-map" class="area-map"></div>
+      <ul class="parcels" id="parcels"></ul>
+      <p class="small muted" data-t="farm.parcelNote">These are your property's parcels on the national property map. A parcel can hold a farmyard, forest or more than one field; you can redraw the outline on the next page.</p>
+    </section>
+
+    <section class="card" aria-labelledby="grew-h">
+      <h2 id="grew-h" data-t="farm.grewTitle">What your farm grew</h2>
+      <div id="grew"></div>
+    </section>
+
+    <section class="card" aria-labelledby="compare-h">
+      <h2 id="compare-h" data-t="farm.compareTitle">Your farm and your municipality</h2>
+      <div id="compare"></div>
+    </section>
+  </div>
+</main>
+
+<footer data-t="start.footer">Rotation Lab · NASA Space Apps 2026 · Data: NASA POWER, NASA HLS, Kartverket, Landbruksdirektoratet</footer>
+</body>
+</html>

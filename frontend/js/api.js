@@ -26,6 +26,7 @@ export const api = {
   vegetation: (boundary, seasons = null) => request('/api/vegetation', { method: 'POST', body: JSON.stringify({ boundary, seasons }) }),
   areas: () => request('/api/areas'),
   area: (code) => request(`/api/areas/${encodeURIComponent(code)}`),
+  farm: (q) => request('/api/farm?' + new URLSearchParams(Object.fromEntries(Object.entries(q).filter(([, v]) => v != null && v !== '')))),
   parcel: (lat, lon) => request('/api/parcel?' + new URLSearchParams({ lat, lon })),
   soil: (lat, lon) => request('/api/soil?' + new URLSearchParams({ lat, lon })),
   farmCrops: (lat, lon) => request('/api/farm-crops?' + new URLSearchParams({ lat, lon })),

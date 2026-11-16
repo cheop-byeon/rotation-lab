@@ -110,3 +110,7 @@ Methods, validation results and limits: [docs/data-and-methods.md](docs/data-and
 - The 13 crop profiles and the rotation scoring are planning-grade values that still need review by a local agronomist.
 - Crops are public per farm, not per field, and drainage and irrigation have no public source: the grower fills these in.
 - Next: a Norwegian translation of all text (`frontend/js/i18n/`), agronomist review of the crop profiles, and a lighter Evidence page.
+
+## License
+
+The code is under the [MIT License](LICENSE). The data in `data/` comes from the sources above and keeps their own terms (NASA data is public domain; Landbruksdirektoratet, Kartverket and SSB data are under NLOD/CC BY 4.0; ISRIC SoilGrids under CC BY 4.0; ESA WorldCover under CC BY 4.0).

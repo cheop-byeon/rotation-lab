@@ -46,6 +46,9 @@ def main(points):
         print("saved", publicdata.save_snapshot(publicdata.soil_key(f["lat"], f["lon"])))
         print(f"{f['name']} farm crops: {asyncio.run(publicdata.farm_crops(f['lat'], f['lon']))['status']}")
         print("saved", publicdata.save_snapshot(publicdata.property_key(f["lat"], f["lon"])))
+    # the example farm (Find my farm → 81/5 in Stjørdal): its property outlines
+    print(f"example farm: {asyncio.run(publicdata.farm('5035', 81, 5))['status']}")
+    print("saved", publicdata.save_snapshot("teig:5035-81-5-0"))
 
 
 if __name__ == "__main__":

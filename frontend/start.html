@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Rotation Lab · Find my farm</title>
+  <meta name="description" content="Find your farm and its fields, with 45 years of NASA weather and every NASA satellite image of each field since 2020.">
+  <meta name="theme-color" content="#F6F4EE">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232E7D32'/%3E%3Cpath d='M18 44c14 0 28-10 28-28-16 0-28 10-28 28z' fill='%23FFFDF8'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/vendor/leaflet-1.9.4/leaflet.min.css">
+  <link rel="stylesheet" href="/css/field.css">
+  <script src="/vendor/leaflet-1.9.4/leaflet.min.js" defer></script>
+  <script type="module" src="/js/start.js"></script>
+</head>
+<body>
+<header class="bar">
+  <a class="brand" href="/" aria-label="Rotation Lab home">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#2E7D32"/><path d="M9 22c7 0 14-5 14-14-8 0-14 5-14 14z" fill="#FFFDF8"/></svg>
+    <span>Rotation Lab</span>
+  </a>
+</header>
+
+<main>
+  <p class="tagline" data-t="start.tagline">Your farm and fields, with NASA weather and satellite records.</p>
+
+  <section class="card" aria-labelledby="find-h">
+    <h2 id="find-h" data-t="start.title">Find your farm</h2>
+    <form id="find" autocomplete="off" class="find-farm">
+      <label class="q"><span data-t="start.municipality">Municipality</span>
+        <input id="kommune" list="places" type="search" placeholder="Stjørdal" required></label>
+      <datalist id="places"></datalist>
+      <div class="num-row">
+        <label class="q"><span data-t="start.gnr">Farm number (gnr)</span><input id="gnr" type="number" inputmode="numeric" min="1" placeholder="81"></label>
+        <label class="q"><span data-t="start.bnr">Holding number (bnr)</span><input id="bnr" type="number" inputmode="numeric" min="1" placeholder="5"></label>
+      </div>
+      <p class="small muted" data-t="start.numbersHint">The farm and holding numbers are on your property tax bill and on norgeskart.no.</p>
+      <button class="btn primary wide" type="submit" data-t="start.find">Find my farm</button>
+    </form>
+    <p class="small" id="find-msg" role="status"></p>
+
+    <details class="more" id="by-map">
+      <summary data-t="start.byMap">Don’t know the numbers? Pick your farm on a map</summary>
+      <p class="small muted" id="map-msg" data-t="start.mapHint">Choose the municipality above. Each dot is a farm; tap yours.</p>
+      <div id="farm-map" class="area-map"></div>
+    </details>
+  </section>
+
+  <p class="small"><a href="/farm?area=5035&amp;gnr=81&amp;bnr=5" data-t="start.example">Or open the example farm in Stjørdal →</a></p>
+</main>
+
+<footer data-t="start.footer">Rotation Lab · NASA Space Apps 2026 · Data: NASA POWER, NASA HLS, Kartverket, Landbruksdirektoratet</footer>
+</body>
+</html>

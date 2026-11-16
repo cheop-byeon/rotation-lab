@@ -69,15 +69,19 @@ If port 8000 is already in use, pick another port with `PORT=…`.
 
 ### Using the app
 
-The app has two levels: **an area** (a municipality) and **a piece of farm land** in it. A trail at the top (*All areas › Stjørdal › Farm land in Stjørdal*) shows where you are and leads back up.
-For a piece of land, **Overview / Evidence** at the top right switches between the plain-language view (`/field`) and the full charts and tables (`/data`) of the *same* land: both read the same address (`?field=<id>` for a saved field, or `?lat=&lon=&place=&area=` for a spot opened from the area view) and fill it from the same public records (`frontend/js/records.js`).
+The app is built for growers and follows how they think about their land: **find my farm → my farm → one field**.
+- **Find my farm (`/`):** type the municipality and the farm and holding numbers (*gårdsnummer/bruksnummer*, e.g. 81/5), or pick your farm on a map that shows farms only, or open the example farm.
+- **Your farm (`/farm`):** the property's parcels from Kartverket's property map, to choose a field from; what the farm reported growing each year 2017–2026 (Landbruksdirektoratet); and the farm's crops next to the municipality's. A parcel can hold a farmyard, forest or more than one field, and the page says so. The property number is shown only when the grower typed it.
+- **One field (`/field`, `/data`):** the overview and evidence described below. **Farming in a municipality (`/area`)** is context, linked from the farm page.
 
-**Area view (`/`, the start page)** is for anyone who does not know the land, for example a supplier of fertiliser or machinery. Type a municipality (or pick one of the largest farming areas) and one page answers three questions:
+A trail at the top (*Find my farm › Stjørdal › Farm 81/5 › Parcel 2 · 2.5 ha*) shows where you are and leads back up.
+
+**Farming in a municipality (`/area`)** gives a grower the context around their farm (and works for anyone else who wants it). Type a municipality and one page answers three questions:
 1. **What farms grow:** each crop group's share of arable land in 2026, and whether it has changed steadily since 2017. A change is named only when the whole record trends the same way (Theil–Sen, Mann–Kendall p < 0.05) and moves at least 3 percentage points. In Stjørdal, for example, barley fell from 44% to 36% and wheat rose from 3% to 6%; grass, oats and potatoes show no steady change.
 2. **How the climate is changing:** the NASA POWER *then and now* (1991–2000 against the last ten seasons) for the middle of the farming area.
-3. **Where the farms are:** farm centres from the farm register as dots, sized by arable land and coloured by main crop, with no names. A dot opens that spot's land: the property parcel under it (Kartverket) as the outline, the SoilGrids soil estimate and the farm's last reported crop.
+3. **Where the farms are:** farm centres from the farm register as dots, sized by arable land and coloured by main crop, with no names. A dot opens that farm's page.
 
-Everything else (the yearly table, method and sources) is behind **Show the evidence**. The data are totals of what farms reported to Landbruksdirektoratet, built into `data/areas/` (353 municipalities, 2.3 MB) by `scripts/build_areas.py`, counted under today's municipalities with SSB's KLASS change list. Old links such as `/?field=1` are sent on to `/field?field=1`.
+Everything else (the yearly table, method and sources) is behind **Show the evidence**. The data are totals of what farms reported to Landbruksdirektoratet, built into `data/areas/` (353 municipalities, 2.3 MB) by `scripts/build_areas.py`, counted under today's municipalities with SSB's KLASS change list. Old links such as `/?field=1` and `/?area=5035` are sent on to `/field?field=1` and `/area?area=5035`.
 
 The demo field **Stjørdal 01** (Trøndelag, Norway) loads automatically. It is a **real 2.5 ha arable field** west of Stjørdal, filled in from public records only:
 - **Outline:** the property parcel from Kartverket's open property service (`ws.geonorge.no/eiendom/v1`), which follows the field's edges.

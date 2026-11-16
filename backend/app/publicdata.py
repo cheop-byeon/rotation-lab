@@ -195,6 +195,41 @@ def _simplify(ring: list, max_points: int = 300) -> list:
     return out + [out[0]]
 
 
+async def _property_at(lat: float, lon: float) -> dict | None:
+    found, _ = await _cached_json(property_key(lat, lon), EIENDOM,
+                                  {"nord": lat, "ost": lon, "koordsys": 4326, "radius": 1, "treffPerSide": 10})
+    hits = sorted(found.get("eiendom") or [], key=lambda e: e.get("meterFraPunkt", 0))
+    if not hits:
+        return None
+    e = hits[0]
+    return {"kommune": str(e["kommunenummer"]), "gnr": int(e["gardsnummer"]), "bnr": int(e["bruksnummer"]),
+            "fnr": int(e.get("festenummer", 0) or 0)}
+
+
+async def _rings(prop: dict) -> list:
+    """Outer rings of every parcel (teig) of a property, from Kartverket."""
+    q = {"kommunenummer": prop["kommune"], "gardsnummer": prop["gnr"], "bruksnummer": prop["bnr"],
+         "festenummer": prop.get("fnr", 0), "omrade": "true", "utkoordsys": 4326, "treffPerSide": 100}
+    geo, _ = await _cached_json(f"teig:{prop['kommune']}-{prop['gnr']}-{prop['bnr']}-{q['festenummer']}", GEOKODING, q)
+    rings = []
+    for f in geo.get("features", []):
+        g = f.get("geometry") or {}
+        polys = g.get("coordinates", []) if g.get("type") == "MultiPolygon" else [g.get("coordinates", [])] if g.get("type") == "Polygon" else []
+        rings += [p[0] for p in polys if p]
+    return rings
+
+
+def _inside_point(ring: list) -> tuple[float, float]:
+    """A point inside the ring (lon, lat): its centroid when that is inside, else the middle of a horizontal chord."""
+    pts = ring[:-1] if ring[0] == ring[-1] else ring
+    c = (sum(p[0] for p in pts) / len(pts), sum(p[1] for p in pts) / len(pts))
+    if _inside(c, ring):
+        return c
+    y = c[1]
+    xs = sorted(x1 + (y - y1) * (x2 - x1) / (y2 - y1) for (x1, y1), (x2, y2) in zip(ring, ring[1:]) if (y1 > y) != (y2 > y))
+    return ((xs[0] + xs[1]) / 2, y) if len(xs) >= 2 else c
+
+
 async def parcel(lat: float, lon: float) -> dict:
     """Outline of the property parcel (teig) under a point, from Kartverket, to use as a field outline.
 
@@ -204,22 +239,12 @@ async def parcel(lat: float, lon: float) -> dict:
     if not in_norway(lat, lon):
         return {"status": "outside", "message": "Property outlines are available in Norway only."}
     try:
-        found, _ = await _cached_json(property_key(lat, lon), EIENDOM,
-                                      {"nord": lat, "ost": lon, "koordsys": 4326, "radius": 1, "treffPerSide": 10})
-        hits = sorted(found.get("eiendom") or [], key=lambda e: e.get("meterFraPunkt", 0))
-        if not hits:
+        prop = await _property_at(lat, lon)
+        if not prop:
             return {"status": "no_property", "message": "No property was found at this point."}
-        e = hits[0]
-        q = {"kommunenummer": e["kommunenummer"], "gardsnummer": e["gardsnummer"], "bruksnummer": e["bruksnummer"],
-             "festenummer": e.get("festenummer", 0), "omrade": "true", "utkoordsys": 4326, "treffPerSide": 100}
-        geo, _ = await _cached_json(f"teig:{e['kommunenummer']}-{e['gardsnummer']}-{e['bruksnummer']}-{q['festenummer']}", GEOKODING, q)
+        rings = await _rings(prop)
     except Unavailable as exc:
         return {"status": "unavailable", "message": f"Kartverket's property service could not be reached: {exc}"}
-    rings = []
-    for f in geo.get("features", []):
-        g = f.get("geometry") or {}
-        polys = g.get("coordinates", []) if g.get("type") == "MultiPolygon" else [g.get("coordinates", [])] if g.get("type") == "Polygon" else []
-        rings += [p[0] for p in polys if p]
     if not rings:
         return {"status": "no_outline", "message": "Kartverket has no outline for this property."}
     ring = next((r for r in rings if _inside((lon, lat), r)), None) or max(rings, key=lambda r: hls.area_ha({"coordinates": [r]}))
@@ -229,3 +254,50 @@ async def parcel(lat: float, lon: float) -> dict:
     return {"status": "ok", "boundary": boundary, "area_ha": round(hls.area_ha(boundary), 2),
             "source": "Kartverket property map (matrikkel), open data",
             "note": "The outline of the property parcel at this point. It can include a farmyard, forest or more than one field; redraw it to match one field."}
+
+
+# ---------------------------------------------------------------- a farm: its parcels and what it reported growing
+MIN_PARCEL_HA = 0.3  # the smallest outline the satellite record can read (30 m pixels)
+
+
+async def farm(kommune: str | None = None, gnr: int | None = None, bnr: int | None = None,
+               lat: float | None = None, lon: float | None = None) -> dict:
+    """A farm found by its property number (kommune, gnr, bnr) or by a point on it (a farm dot).
+
+    Returns the property's parcels (Kartverket) as candidate fields, and the crops reported by the farm based on that
+    property (Landbruksdirektoratet). A parcel can hold a farmyard, forest or more than one field."""
+    from . import hls
+    idx = _farm_index()
+    base = {"source": "Kartverket property map; " + idx["source"], "note":
+            "Parcels are the property's land on the property map. One can hold a farmyard, forest or more than one field."}
+    try:
+        if lat is not None and lon is not None:
+            if not in_norway(lat, lon):
+                return {**base, "status": "outside", "message": "Farms can be looked up in Norway only."}
+            prop = await _property_at(lat, lon)
+            if not prop:
+                return {**base, "status": "not_found", "message": "No property was found at this point."}
+        else:
+            prop = {"kommune": str(kommune).zfill(4), "gnr": int(gnr), "bnr": int(bnr), "fnr": 0}
+        rings = await _rings(prop)
+    except Unavailable as exc:
+        return {**base, "status": "unavailable", "message": f"Kartverket's property service could not be reached: {exc}"}
+    if not rings:
+        return {**base, "status": "not_found", "property": prop,
+                "message": f"No property {prop['gnr']}/{prop['bnr']} was found in this municipality. Check the farm and holding numbers."}
+    parcels = []
+    for r in rings:
+        boundary = {"type": "Polygon", "coordinates": [_simplify(r)]}
+        ha = hls.area_ha(boundary)
+        if ha < MIN_PARCEL_HA:
+            continue
+        x, y = _inside_point(r)
+        parcels.append({"area_ha": round(ha, 2), "point": [round(y, 6), round(x, 6)], "boundary": boundary,
+                        "usable": hls.validate_boundary(boundary) is None})
+    parcels.sort(key=lambda p: -p["area_ha"])
+    for n, p in enumerate(parcels, 1):
+        p["n"] = n
+    farms = idx["properties"].get(f"{prop['kommune']}-{prop['gnr']}-{prop['bnr']}", [])
+    return {**base, "status": "ok", "property": prop, "parcels": parcels,
+            "farms": [{"years": _years(f)} for f in farms],
+            "reported": "one" if len(farms) == 1 else "several" if farms else "none"}

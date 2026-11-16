@@ -1,7 +1,8 @@
 // One piece of farm land opened from a spot (e.g. a farm dot in the area view), filled from public records. The simple
 // (field) and detailed (data) views both use this, so they always show the same land with the same inputs.
 //
-// URL: ?lat=&lon=&place=&area=  — lat/lon is the spot that was picked, place the municipality name, area its number.
+// URL: ?lat=&lon=&place=&area=[&label=&fq=&fn=] — lat/lon is the spot that was picked (a point inside the parcel), place
+// the municipality name, area its number; from a farm page also the field's label, the farm page's query and its name.
 import { api } from './api.js';
 import { centroid } from './draw.js';
 
@@ -12,11 +13,13 @@ const REPORTED_TO_CATALOG = { Barley: 'Barley', Oats: 'Oats', 'Spring wheat': 'S
 export function spotFromUrl(qs = new URLSearchParams(location.search)) {
   const lat = Number(qs.get('lat')), lon = Number(qs.get('lon'));
   if (!qs.has('lat') || !Number.isFinite(lat) || !Number.isFinite(lon)) return null;
-  return { lat, lon, place: qs.get('place') || qs.get('name') || '', area: qs.get('area') || '' };
+  return { lat, lon, place: qs.get('place') || qs.get('name') || '', area: qs.get('area') || '',
+    label: qs.get('label') || '', fq: qs.get('fq') || '', fn: qs.get('fn') || '' };
 }
 
 export function spotQuery(spot) {
-  return new URLSearchParams({ lat: spot.lat, lon: spot.lon, ...(spot.place ? { place: spot.place } : {}), ...(spot.area ? { area: spot.area } : {}) }).toString();
+  const opt = Object.fromEntries(['place', 'area', 'label', 'fq', 'fn'].filter((k) => spot[k]).map((k) => [k, spot[k]]));
+  return new URLSearchParams({ lat: spot.lat, lon: spot.lon, ...opt }).toString();
 }
 
 export async function fieldFromSpot(spot, nameFor) {
@@ -27,7 +30,7 @@ export async function fieldFromSpot(spot, nameFor) {
   const c = parcel?.status === 'ok' ? centroid(parcel.boundary) : null;  // [lat, lon]
   return {
     id: null, demo: 0, from_records: true, spot,
-    name: nameFor(spot.place || `${spot.lat.toFixed(3)}, ${spot.lon.toFixed(3)}`),
+    name: spot.label || nameFor(spot.place || `${spot.lat.toFixed(3)}, ${spot.lon.toFixed(3)}`),
     lat: c ? +c[0].toFixed(4) : spot.lat, lon: c ? +c[1].toFixed(4) : spot.lon,
     soil: soil?.status === 'ok' ? soil.soil : 'Unknown', drainage: 'Unknown', irrigation: 'Unknown',
     // The farm's last reported main crop; with no farm on record, barley (Norway's most grown crop) as a stated default.

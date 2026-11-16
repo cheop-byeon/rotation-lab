@@ -291,6 +291,16 @@ def area_detail(code: str):
     return d
 
 
+@app.get("/api/farm")
+async def farm_lookup(kommune: str | None = Query(default=None, pattern=r"^\d{3,4}$"), gnr: int | None = Query(default=None, ge=1),
+                      bnr: int | None = Query(default=None, ge=1), lat: float | None = Query(default=None, ge=-60, le=75),
+                      lon: float | None = Query(default=None, ge=-180, le=180)):
+    """A farm by property number (kommune + gnr + bnr) or by a point on it: its parcels and reported crops (Norway)."""
+    if lat is None and None in (kommune, gnr, bnr):
+        raise HTTPException(422, "Give kommune, gnr and bnr, or lat and lon.")
+    return await publicdata.farm(kommune, gnr, bnr, lat, lon)
+
+
 @app.get("/api/parcel")
 async def property_parcel(lat: float = Query(ge=-60, le=75), lon: float = Query(ge=-180, le=180)):
     """Outline of the property parcel under a point (Norway, Kartverket), usable as a starting field outline."""
@@ -407,10 +417,24 @@ def delete_field(field_id: int):
 # ------------------------------------------------------------------ frontend
 @app.get("/", include_in_schema=False)
 def area_view(request: Request):
-    """Start page: farming in a municipality (search a place; farms as dots). Old field links still work."""
+    """Start page: find my farm (municipality + farm and holding number, or a farm on the map). Old field links still work."""
     if any(k in request.query_params for k in ("field", "lat")):
         return RedirectResponse(f"/field?{request.url.query}", status_code=307)
+    if "area" in request.query_params:  # the area page used to be the start page
+        return RedirectResponse(f"/area?{request.url.query}", status_code=307)
+    return FileResponse(FRONTEND / "start.html")
+
+
+@app.get("/area", include_in_schema=False)
+def area_page():
+    """Farming in a municipality: what farms grow, the climate, where the farms are."""
     return FileResponse(FRONTEND / "area.html")
+
+
+@app.get("/farm", include_in_schema=False)
+def farm_page():
+    """One farm: its parcels to choose a field from, and what it reported growing."""
+    return FileResponse(FRONTEND / "farm.html")
 
 
 @app.get("/field", include_in_schema=False)

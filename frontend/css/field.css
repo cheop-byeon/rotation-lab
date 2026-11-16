@@ -219,3 +219,17 @@ details.more { margin-top: 14px; border-top: 1px solid var(--line); padding-top:
 details.more > summary { cursor: pointer; font-weight: 700; color: var(--green); }
 @media (max-width: 420px) { .tabs button { font-size: .85rem; } }
 @media print { .tabs { display: none; } [data-panel][hidden] { display: block !important; } }
+
+/* ---------------- find my farm, and the farm page */
+.find-farm .num-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.find-farm input { width: 100%; box-sizing: border-box; min-height: 52px; padding: 10px 14px; border-radius: 14px; border: 2px solid var(--line); font: inherit; background: #fff; }
+.find-farm .q span { display: block; font-weight: 700; margin-bottom: 6px; }
+.parcels { list-style: none; padding: 0; margin: 12px 0; display: grid; gap: 8px; }
+.parcels .btn { width: 100%; justify-content: space-between; }
+.parcel-label { background: var(--green); color: #fff; border: 0; border-radius: 999px; font-weight: 700; padding: 2px 8px; box-shadow: none; }
+.parcel-label::before { display: none; }
+table.compare { width: 100%; border-collapse: collapse; }
+table.compare th, table.compare td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+table.compare td:not(:first-child) { white-space: nowrap; font-variant-numeric: tabular-nums; font-weight: 700; }
+table.compare .bar-track { display: inline-block; width: 70px; height: 10px; border-radius: 5px; background: var(--bg); overflow: hidden; vertical-align: middle; margin-right: 6px; }
+table.compare .bar-track i { display: block; height: 100%; }

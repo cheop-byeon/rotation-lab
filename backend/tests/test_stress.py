@@ -232,3 +232,21 @@ def test_parcel_outline_helpers_and_impossible_ndvi():
                         {"images_found": 5, "images_read_now": 0, "images_from_cache": 5, "images_failed": 0}, 0)
     assert all(o["ndvi"] is None or o["ndvi"] <= 1 for o in rec["observations"])
     assert rec["seasons"][0]["peak_ndvi"] <= 1
+
+
+def test_example_farm_offline_parcels_and_reported_crops(monkeypatch):
+    from fastapi.testclient import TestClient
+    from app import publicdata
+    from app.main import app
+    monkeypatch.setattr(publicdata, "GEOKODING", "https://geokoding.invalid/")
+    with TestClient(app) as cl:
+        d = cl.get("/api/farm", params={"kommune": "5035", "gnr": 81, "bnr": 5}).json()
+        assert cl.get("/api/farm", params={"gnr": 81}).status_code == 422
+        assert cl.get("/farm").status_code == 200 and cl.get("/area").status_code == 200
+        assert cl.get("/?area=5035", follow_redirects=False).headers["location"] == "/area?area=5035"
+    assert d["status"] == "ok" and d["reported"] == "one"
+    assert [p["n"] for p in d["parcels"]] == [1, 2] and all(p["usable"] for p in d["parcels"])
+    assert abs(d["parcels"][1]["area_ha"] - 2.51) < 0.05          # parcel 2 is the example field
+    assert all(publicdata._inside((p["point"][1], p["point"][0]), p["boundary"]["coordinates"][0]) for p in d["parcels"])
+    years = {y["year"]: y for y in d["farms"][0]["years"]}
+    assert years[2020]["main"] == "Barley" and years[2026]["main"] == "Grass ley"
